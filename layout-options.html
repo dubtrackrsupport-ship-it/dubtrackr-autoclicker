@@ -1,0 +1,319 @@
+<title>Dubtrackr AutoClicker — layout options</title>
+<style>
+  :root{
+    --bg:#020814; --bg-deep:#01050d; --surface:#071426; --surface-2:#0b1a30;
+    --text:#f7f9fc; --muted:#9dadc2; --line:#203753; --line-soft:rgba(99,141,184,.22);
+    --cyan:#428dff; --cyan-strong:#2f7ff2; --violet:#824cf2;
+    --grad:linear-gradient(135deg,#39a8ff,#4f72f5 52%,#824cf2);
+    --coral:#ff695f; --green:#3bdda1; --radius:18px;
+    --page:#060b18; --page-text:#eaf0fb; --page-muted:#93a3bd; --card:#0a1526; --cardline:#1c2c46;
+    --ui:"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,sans-serif;
+    --mono:"Cascadia Code","Cascadia Mono",Consolas,ui-monospace,monospace;
+  }
+  :root[data-theme="light"]{
+    --page:#eef2f9; --page-text:#0d1a2e; --page-muted:#4a5a74; --card:#ffffff; --cardline:#d4deec;
+  }
+  @media (prefers-color-scheme: light){
+    :root:not([data-theme="dark"]){
+      --page:#eef2f9; --page-text:#0d1a2e; --page-muted:#4a5a74; --card:#ffffff; --cardline:#d4deec;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0}
+  .wrap{font-family:var(--ui);background:var(--page);color:var(--page-text);
+    min-height:100vh;padding:40px 24px 72px;transition:background .3s,color .3s}
+  .inner{max-width:1160px;margin:0 auto}
+  .top{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:8px}
+  .brand{display:flex;align-items:center;gap:12px}
+  .logo{width:38px;height:38px;border-radius:11px;background:var(--grad);
+    display:grid;place-items:center;font-weight:800;color:#fff;font-size:18px;
+    box-shadow:0 6px 22px rgba(79,114,245,.45)}
+  h1{margin:0;font-size:24px;font-weight:800;letter-spacing:-.4px}
+  .kicker{margin:2px 0 0;font-size:13px;color:var(--page-muted);font-weight:600;
+    text-transform:uppercase;letter-spacing:1.4px}
+  .lead{max-width:660px;color:var(--page-muted);font-size:15px;line-height:1.65;margin:14px 0 34px}
+  .lead b{color:var(--page-text);font-weight:700}
+  .tgl{display:flex;gap:6px;background:var(--card);border:1px solid var(--cardline);
+    border-radius:12px;padding:4px}
+  .tgl button{font:inherit;font-size:13px;font-weight:700;color:var(--page-muted);
+    background:none;border:0;padding:7px 13px;border-radius:9px;cursor:pointer;display:flex;gap:6px;align-items:center}
+  .tgl button[aria-pressed="true"]{background:var(--grad);color:#fff}
+
+  .pick{display:flex;align-items:center;gap:11px;margin:0 0 18px}
+  .pickbadge{font-size:12px;font-weight:800;letter-spacing:.4px;color:#06210f;background:var(--green);
+    border-radius:20px;padding:5px 12px;text-transform:uppercase}
+  .pickttl{font-size:19px;font-weight:800}
+  .pickttl small{font-size:13px;font-weight:700;color:var(--page-muted)}
+
+  .feature{display:grid;grid-template-columns:minmax(0,1fr);justify-items:center;
+    background:var(--card);border:1px solid var(--cardline);border-radius:18px;padding:34px 24px;margin-bottom:16px}
+
+  .tag{display:inline-flex;align-items:center;gap:9px;font-size:13px;font-weight:800;letter-spacing:.3px;margin-bottom:12px}
+  .tag .dot{width:22px;height:22px;border-radius:7px;background:var(--grad);color:#fff;
+    display:grid;place-items:center;font-size:12px;font-weight:800}
+  .name{font-size:17px;font-weight:800}
+  .desc{color:var(--page-muted);font-size:13.5px;line-height:1.6;margin:12px 4px 0}
+  .desc b{color:var(--page-text)}
+  .pros{list-style:none;padding:0;margin:14px 0 0;display:flex;flex-wrap:wrap;gap:7px;justify-content:center}
+  .pros li{font-size:12px;font-weight:600;color:var(--cyan);background:rgba(66,141,255,.12);
+    border:1px solid rgba(66,141,255,.3);border-radius:20px;padding:4px 11px}
+
+  /* ---- app window frame (always brand-dark: this is the product) ---- */
+  .win{background:var(--bg);border:1px solid var(--line);border-radius:14px;overflow:hidden;
+    color:var(--text);box-shadow:0 24px 60px rgba(0,0,0,.5);font-family:var(--ui)}
+  .bar{display:flex;align-items:center;justify-content:space-between;height:38px;
+    padding:0 4px 0 14px;background:var(--bg-deep);border-bottom:1px solid var(--line)}
+  .bar .t{display:flex;align-items:center;gap:9px;font-size:12.5px;font-weight:700;color:#cdd9ec}
+  .bar .t i{width:16px;height:16px;border-radius:5px;background:var(--grad);display:inline-block}
+  .caps{display:flex}
+  .caps span{width:38px;height:38px;display:grid;place-items:center;color:#8fa0ba;font-size:13px}
+  .caps span:last-child:hover{background:#e81123;color:#fff}
+  .body{padding:16px}
+  .sec{background:var(--surface-2);border:1px solid var(--line-soft);border-radius:12px;
+    padding:12px 13px;margin-bottom:11px}
+  .sec h4{margin:0 0 10px;font-size:11px;font-weight:800;letter-spacing:1.2px;
+    text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:7px}
+  .sec h4 b{color:var(--cyan)}
+  .row{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+  .row:last-child{margin-bottom:0}
+  .row label{font-size:12px;color:var(--muted);min-width:58px}
+  .fld{background:var(--bg);border:1px solid var(--line);border-radius:8px;color:var(--text);
+    font:inherit;font-size:12.5px;padding:6px 9px;min-width:0;flex:1}
+  .fld.n{max-width:64px;text-align:right;font-family:var(--mono)}
+  .pill{display:inline-flex;align-items:center;gap:6px;background:var(--bg);border:1px solid var(--line);
+    border-radius:8px;padding:6px 9px;font-size:12px;color:#cdd9ec}
+  .seg{display:flex;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:3px}
+  .seg b{font-size:11.5px;font-weight:700;color:var(--muted);padding:5px 10px;border-radius:6px;cursor:default}
+  .seg b.on{background:var(--grad);color:#fff}
+  .hot{font-family:var(--mono);font-size:12px;background:rgba(130,76,242,.16);
+    border:1px solid rgba(130,76,242,.5);color:#c7b3ff;border-radius:7px;padding:4px 9px;font-weight:700}
+  .start{width:100%;border:0;border-radius:11px;padding:13px;font:inherit;font-size:14.5px;
+    font-weight:800;letter-spacing:.3px;color:#fff;background:var(--grad);cursor:pointer;
+    display:flex;align-items:center;justify-content:center;gap:9px;box-shadow:0 8px 26px rgba(79,114,245,.4)}
+  .start.stop{background:linear-gradient(135deg,#ff8a5f,#ff5f6f);box-shadow:0 8px 26px rgba(255,95,111,.35)}
+  .cps{font-family:var(--mono);font-weight:800;letter-spacing:-1px;line-height:1}
+  .status{display:inline-flex;align-items:center;gap:7px;font-size:11.5px;font-weight:700}
+  .status .led{width:8px;height:8px;border-radius:50%}
+  .live .led{background:var(--green);box-shadow:0 0 10px var(--green)}
+  .idle .led{background:#5a6b84}
+  .live{color:var(--green)} .idle{color:#7c8aa3}
+  .accent{display:flex;gap:6px;align-items:center}
+  .swatch{width:15px;height:15px;border-radius:5px;cursor:pointer;border:2px solid transparent}
+  .swatch.sel{border-color:#fff}
+  .foot{display:flex;align-items:center;justify-content:space-between;margin-top:2px;
+    padding-top:11px;border-top:1px solid var(--line-soft)}
+  .ghost{background:var(--bg);border:1px solid var(--line);color:#cdd9ec;font:inherit;font-size:11.5px;
+    font-weight:700;border-radius:8px;padding:7px 11px;display:inline-flex;gap:6px;align-items:center;cursor:pointer}
+
+  /* B: dual columns */
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+  .cols .sec{margin-bottom:0}
+  .hud{display:flex;align-items:baseline;gap:8px;margin:2px 0 10px}
+  .hud .cps{font-size:30px;color:var(--text)}
+  .hud small{font-size:10.5px;color:var(--muted);font-weight:700;letter-spacing:.5px}
+
+  /* B widened (+15% all around) */
+  .win.wide{width:440px;max-width:100%}
+  .win.wide .body{padding:19px}
+  .win.wide .sec{padding:14px 15px}
+  .win.wide .cols{gap:13px}
+  .win.wide .hud .cps{font-size:35px}
+  .win.wide .start{padding:15px;font-size:15.5px}
+  .win.wide .row{margin-bottom:11px}
+
+  /* others row */
+  .others h3{font-size:13px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;
+    color:var(--page-muted);margin:26px 0 16px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:26px;align-items:start}
+  .opt{display:flex;flex-direction:column}
+  .opt .desc{margin-top:11px}
+  .opt .pros{justify-content:flex-start;margin-left:4px}
+
+  /* C: rail */
+  .rail{display:grid;grid-template-columns:52px 1fr}
+  .nav{background:var(--bg-deep);border-right:1px solid var(--line);padding:10px 0;display:flex;
+    flex-direction:column;align-items:center;gap:6px}
+  .nav a{width:36px;height:36px;border-radius:9px;display:grid;place-items:center;color:#7c8aa3;font-size:16px}
+  .nav a.on{background:var(--grad);color:#fff}
+  .cbig{text-align:center;padding:6px 0 14px}
+  .cbig .cps{font-size:44px;color:var(--text)}
+  .cbig .u{font-size:11px;color:var(--muted);font-weight:700;letter-spacing:2px;text-transform:uppercase}
+
+  .note{margin-top:40px;background:var(--card);border:1px solid var(--cardline);border-radius:14px;
+    padding:20px 22px;color:var(--page-muted);font-size:13.5px;line-height:1.65}
+  .note b{color:var(--page-text)}
+  .note h3{margin:0 0 8px;color:var(--page-text);font-size:15px;font-weight:800}
+</style>
+
+<div class="wrap" id="wrap">
+<div class="inner">
+  <div class="top">
+    <div class="brand">
+      <div class="logo">D</div>
+      <div>
+        <p class="kicker">Dubtrackr Network</p>
+        <h1>AutoClicker — layout options</h1>
+      </div>
+    </div>
+    <div class="tgl" role="group" aria-label="Preview theme">
+      <button id="tDark" aria-pressed="true" onclick="setT('dark')">◐ Dark</button>
+      <button id="tLight" aria-pressed="false" onclick="setT('light')">◑ Light</button>
+    </div>
+  </div>
+
+  <p class="lead">Your pick — <b>Dual HUD</b>, widened ~15% all around for more breathing room in the
+  controls and bigger CPS gauges. The two original alternates are kept below for reference. When this
+  looks right, I'll build it into a real <b>.exe</b>.</p>
+
+  <div class="pick">
+    <span class="pickbadge">✓ Your pick</span>
+    <span class="pickttl">B · Dual HUD &nbsp;<small>+15% wider</small></span>
+  </div>
+
+  <!-- ============ FEATURED: B WIDENED ============ -->
+  <div class="feature">
+    <div class="win wide" aria-label="Layout B, widened">
+      <div class="bar">
+        <div class="t"><i></i> Dubtrackr AutoClicker</div>
+        <div class="caps"><span>—</span><span>▢</span><span>✕</span></div>
+      </div>
+      <div class="body">
+        <div class="cols">
+          <div class="sec">
+            <h4><b>◆</b> Mouse</h4>
+            <div class="hud"><span class="cps" style="color:var(--cyan)">6.7</span><small>CPS<br>LIVE</small></div>
+            <div class="row"><span class="pill">Left ▾</span><div class="seg"><b class="on">1×</b><b>2×</b></div></div>
+            <div class="row"><input class="fld n" value="150" readonly>
+              <span style="font-size:11px;color:var(--muted)">ms</span><span class="hot" style="margin-left:auto">F6</span></div>
+            <div class="foot"><span class="status live"><span class="led"></span> Running</span></div>
+          </div>
+          <div class="sec">
+            <h4><b>◆</b> Keyboard</h4>
+            <div class="hud"><span class="cps" style="color:var(--violet)">5.0</span><small>CPS<br>IDLE</small></div>
+            <div class="row"><span class="pill">W ▾</span><div class="seg"><b class="on">Tap</b><b>Hold</b></div></div>
+            <div class="row"><input class="fld n" value="200" readonly>
+              <span style="font-size:11px;color:var(--muted)">ms</span><span class="hot" style="margin-left:auto">F7</span></div>
+            <div class="foot"><span class="status idle"><span class="led"></span> Idle</span></div>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:13px">
+          <button class="start stop" style="flex:1"><span style="font-size:15px">■</span> Stop mouse</button>
+          <button class="start" style="flex:1"><span style="font-size:15px">▶</span> Start key</button>
+        </div>
+        <div class="foot">
+          <span class="ghost">⚡ Fortnite pickaxe</span>
+          <div class="accent">
+            <span class="swatch" style="background:var(--grad)"></span>
+            <span class="swatch sel" style="background:#3bdda1"></span>
+            <span class="swatch" style="background:#ff695f"></span>
+            <span class="swatch" style="background:#ffb43b"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="desc" style="max-width:460px;text-align:center">Both engines side by side with <b>live CPS gauges</b> — run the mouse and a WASD/space key at once, each with its own hotkey and start/stop. Now roomier, so nothing feels cramped.</p>
+    <ul class="pros"><li>Both engines visible</li><li>Live HUD readouts</li><li>Independent stop</li><li>~440px wide</li></ul>
+  </div>
+
+  <!-- ============ OTHER DIRECTIONS ============ -->
+  <div class="others">
+    <h3>The other two directions</h3>
+    <div class="grid">
+      <div class="opt">
+        <span class="tag"><span class="dot">A</span> <span class="name">Command Deck</span></span>
+        <div class="win" aria-label="Layout A mockup">
+          <div class="bar">
+            <div class="t"><i></i> Dubtrackr AutoClicker</div>
+            <div class="caps"><span>—</span><span>▢</span><span>✕</span></div>
+          </div>
+          <div class="body">
+            <div class="sec">
+              <h4><b>◆</b> Mouse</h4>
+              <div class="row"><label>Button</label><span class="pill">Left ▾</span>
+                <div class="seg"><b class="on">Single</b><b>Double</b></div></div>
+              <div class="row"><label>Interval</label>
+                <input class="fld n" value="750" readonly><span style="font-size:11px;color:var(--muted)">ms</span>
+                <input class="fld n" value="1.33" readonly><span style="font-size:11px;color:var(--muted)">cps</span></div>
+              <div class="row"><label>Jitter</label><input class="fld n" value="8" readonly>
+                <span style="font-size:11px;color:var(--muted)">%</span>
+                <span class="hot" style="margin-left:auto">F6</span></div>
+            </div>
+            <div class="sec">
+              <h4><b>◆</b> Keyboard</h4>
+              <div class="row"><label>Key</label><span class="pill">Space</span>
+                <input class="fld n" value="200" readonly><span style="font-size:11px;color:var(--muted)">ms</span>
+                <span class="hot" style="margin-left:auto">F7</span></div>
+            </div>
+            <button class="start"><span style="font-size:16px">▶</span> Start &nbsp;·&nbsp; F1</button>
+            <div class="foot">
+              <span class="status idle"><span class="led"></span> Idle</span>
+              <div class="accent">
+                <span class="swatch sel" style="background:var(--grad)"></span>
+                <span class="swatch" style="background:#3bdda1"></span>
+                <span class="swatch" style="background:#ff695f"></span>
+                <span class="swatch" style="background:#ffb43b"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="desc">Familiar single column, tight footprint. Fastest to learn.</p>
+        <ul class="pros"><li>Compact ~380px</li><li>Zero learning curve</li></ul>
+      </div>
+
+      <div class="opt">
+        <span class="tag"><span class="dot">C</span> <span class="name">Mini Rail</span></span>
+        <div class="win" aria-label="Layout C mockup">
+          <div class="bar">
+            <div class="t"><i></i> AutoClicker</div>
+            <div class="caps"><span>—</span><span>▢</span><span>✕</span></div>
+          </div>
+          <div class="rail">
+            <div class="nav">
+              <a class="on" title="Mouse">◆</a>
+              <a title="Keyboard">⌨</a>
+              <a title="Presets">⚡</a>
+              <a title="Settings">⚙</a>
+            </div>
+            <div class="body" style="padding:14px">
+              <div class="cbig">
+                <div class="cps" style="color:var(--cyan)">13.3</div>
+                <div class="u">clicks / sec</div>
+              </div>
+              <div class="row"><span class="pill" style="flex:1;justify-content:center">Left · Single</span></div>
+              <div class="row">
+                <input class="fld n" value="75" readonly><span style="font-size:11px;color:var(--muted)">ms</span>
+                <input class="fld n" value="10" readonly><span style="font-size:11px;color:var(--muted)">% jit</span></div>
+              <button class="start" style="margin-top:4px"><span style="font-size:15px">▶</span> Toggle · F6</button>
+              <div class="foot">
+                <span class="hot">F6</span>
+                <span class="status idle"><span class="led"></span> Idle</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="desc">Ultra-compact overlay that stays out of the way over a game. One giant CPS readout.</p>
+        <ul class="pros"><li>Smallest footprint</li><li>Always-on-top ready</li></ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    <h3>What ships in every build</h3>
+    <b>Windows 11 light + dark</b> following the system, an <b>accent-swatch theme picker</b> (the dots — cyan/violet gradient, green, coral, amber),
+    <b>saved settings</b> that persist between launches, independent <b>mouse + keyboard</b> engines each with their own hotkey, adjustable interval / CPS with human jitter,
+    the <b>Fortnite pickaxe</b> preset, and infinite repeat. Delivered as a single <b>.exe</b> with dubtrackr branding for your site and GitHub.
+  </div>
+</div>
+</div>
+
+<script>
+  function setT(m){
+    document.documentElement.setAttribute('data-theme',m);
+    tDark.setAttribute('aria-pressed', m==='dark');
+    tLight.setAttribute('aria-pressed', m==='light');
+  }
+  (function(){
+    var mq=window.matchMedia('(prefers-color-scheme: light)');
+    setT(mq.matches?'light':'dark');
+  })();
+</script>

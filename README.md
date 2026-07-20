@@ -1,10 +1,11 @@
+
 # Dubtrackr AutoClicker
 
 A lightweight, open-source **dual-engine autoclicker** — click your mouse *and*
 auto-fire a keyboard key at the same time, each fully independent. Part of the
 [Dubtrackr Network](https://www.dubtrackr.win).
 
-![icon](dubtrackr.png)
+<img width="559" height="499" alt="Screenshot 2026-07-20 152436" src="https://github.com/user-attachments/assets/fc557385-957c-4df9-a42e-4589a44e4e6b" />
 
 ## Features
 

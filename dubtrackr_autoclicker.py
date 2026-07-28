@@ -1,5 +1,5 @@
 """
-Dubtrackr AutoClicker  —  Dual HUD
+DubTrackr AutoClickr  —  Dual HUD
 ==================================
 A lightweight dual-engine autoclicker with dubtrackr branding.
 
@@ -29,7 +29,7 @@ from pynput.mouse import Button, Controller as MouseController
 from pynput.keyboard import (Controller as KeyboardController, Key,
                              Listener as KeyListener)
 
-APP_NAME = "Dubtrackr AutoClicker"
+APP_NAME = "DubTrackr AutoClickr"
 WEBSITE = "https://www.dubtrackr.win"
 VERSION = "1.0"
 
@@ -338,27 +338,27 @@ class App(ctk.CTk):
         w = cv.winfo_width() or 560
         h = 76
         cv.delete("all")
-        ra, ga, ba = (int(self.banner_a[i:i + 2], 16) for i in (1, 3, 5))
-        rb, gb, bb = (int(self.banner_b[i:i + 2], 16) for i in (1, 3, 5))
-        for x in range(w):
-            t = x / max(1, w - 1)
-            col = "#%02x%02x%02x" % (int(ra + (rb - ra) * t),
-                                     int(ga + (gb - ga) * t),
-                                     int(ba + (bb - ba) * t))
-            cv.create_line(x, 0, x, h, fill=col)
-        # official dubtrackr mark on a dark circular tile (pops on the gradient)
-        cv.create_oval(16, 16, 60, 60, fill=NAVY_DEEP, outline="")
+        # solid dark brand surface (matches dubtrackr.win)
+        cv.create_rectangle(0, 0, w, h, fill=NAVY, outline="")
+        # brand mark (white-element variant reads on the dark surface)
         if self._logo_img is not None:
             cv.create_image(38, 38, image=self._logo_img)
         else:
             cv.create_text(38, 38, text="D", fill="#ffffff",
                            font=("Segoe UI Black", 20, "bold"))
-        cv.create_text(70, 27, text=APP_NAME, anchor="w", fill="#ffffff",
-                       font=("Segoe UI Semibold", 15, "bold"))
-        cv.create_text(71, 49, text="Dubtrackr Network", anchor="w",
-                       fill="#e7eefc", font=("Segoe UI", 10))
+        # wordmark: Dub (white) Trackr (preset color 1) Auto (white) Clickr (preset color 2)
+        f = ("Segoe UI Black", 15)
+        seg = cv.create_text(68, 29, text="Dub", anchor="w", fill="#ffffff", font=f)
+        seg = cv.create_text(cv.bbox(seg)[2], 29, text="Trackr", anchor="w",
+                             fill=self.banner_a, font=f)
+        seg = cv.create_text(cv.bbox(seg)[2], 29, text=" Auto", anchor="w",
+                             fill="#ffffff", font=f)
+        cv.create_text(cv.bbox(seg)[2], 29, text="Clickr", anchor="w",
+                       fill=self.banner_b, font=f)
+        cv.create_text(69, 51, text="part of the dubtrackr network", anchor="w",
+                       fill="#5f6f86", font=("Segoe UI", 9))
         link = cv.create_text(w - 18, 38, text="dubtrackr.win  ↗", anchor="e",
-                              fill="#ffffff", font=("Segoe UI Semibold", 11, "bold"))
+                              fill=self.accent, font=("Segoe UI Semibold", 11, "bold"))
         cv.tag_bind(link, "<Button-1>", lambda e: webbrowser.open(WEBSITE))
         cv.tag_bind(link, "<Enter>", lambda e: cv.config(cursor="hand2"))
         cv.tag_bind(link, "<Leave>", lambda e: cv.config(cursor=""))

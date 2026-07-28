@@ -1,5 +1,5 @@
 
-# Dubtrackr AutoClicker
+# DubTrackr AutoClickr
 
 A lightweight, open-source **dual-engine autoclicker** — click your mouse *and*
 auto-fire a keyboard key at the same time, each fully independent. Part of the
@@ -30,17 +30,22 @@ Grab `DubtrackrAutoClicker.exe` from the [Releases](https://github.com/dubtrackr
 run it. Press each engine's hotkey (default **F6** mouse, **F7** keyboard) to
 toggle it — the hotkeys work even when the window isn't focused.
 
-### "Windows protected your PC" / antivirus warning
+### Is it safe?
 
-This is an **unsigned** build, so Windows SmartScreen and some antivirus engines
-may warn about it — this is a known false positive for any autoclicker (they
-simulate input, which heuristics flag). The app is fully open source; you can:
+Yes. DubTrackr AutoClickr is fully open source — every line is in this repo, and the
+released `.exe` matches the source (verify the SHA-256 on the release page).
 
-1. **Verify it** on [VirusTotal](https://www.virustotal.com/) — upload the exe.
-2. **Build it yourself** from source (below) — takes under a minute.
+Because it's an **unsigned, PyInstaller-packaged** app that simulates mouse/keyboard
+input, a few antivirus engines flag it *heuristically*. On
+[VirusTotal](https://www.virustotal.com/gui/file/e3475397677d60eac0f60faee2e04c6dc64a609fa6893c1c4422246b951f7814),
+a handful of engines flag it with generic ML labels (e.g. Microsoft `Wacatac.B!ml`, a
+well-known false positive for PyInstaller apps) — while **all major engines report it
+clean** and VirusTotal's **behavioral sandbox finds no malicious activity** (no network
+calls, no dropped files, nothing).
 
-Signed builds via the [SignPath Foundation](https://signpath.io/solutions/open-source-community)
-OSS program are planned.
+Prefer not to trust a pre-built binary? Build it yourself from source (below). Code
+signing via the [SignPath Foundation](https://signpath.io/solutions/open-source-community)
+OSS program is planned, which will clear these heuristic flags.
 
 ## Build from source
 

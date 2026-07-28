@@ -22,10 +22,13 @@ def main():
         "--noconfirm", "--clean", "--onefile", "--windowed",
         "--name", "DubtrackrAutoClicker",
         "--icon", os.path.join(HERE, "dubtrackr.ico"),
+        "--version-file", os.path.join(HERE, "version_info.txt"),
         "--add-data", f"{os.path.join(HERE, 'dubtrackr.ico')}{sep}.",
         "--add-data", f"{os.path.join(HERE, 'assets')}{sep}assets",
         "--add-data", f"{ctk_dir}{sep}customtkinter",
         "--collect-submodules", "customtkinter",
+        # numpy is dragged in by Pillow but never used — ~28 MB of dead weight
+        "--exclude-module", "numpy",
         os.path.join(HERE, "dubtrackr_autoclicker.py"),
     ]
     print(" ".join(cmd))

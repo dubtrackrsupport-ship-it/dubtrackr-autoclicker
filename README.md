@@ -19,7 +19,7 @@ auto-fire a keyboard key at the same time, each fully independent. Part of the
 - **Mouse options** — left / right / middle button, single or double click.
 - **Keyboard options** — **Tap** (repeat a key) or **Hold** (keep a key held
   down, e.g. sprint) for any key: `space`, `w`, `a`, `s`, `d`, ...
-- **Fortnite pickaxe preset** — one click per swing, nothing wasted.
+- **Droid Tycoon scrap/craft preset** — tuned for scrap-table and crafting swings.
 - **Windows 11 light / dark** (follows your system) + accent theme picker.
 - **Settings persist** between launches (`%APPDATA%\DubtrackrAutoClicker`).
 - Ships as a single `.exe` — no install, no dependencies.
@@ -32,20 +32,17 @@ toggle it — the hotkeys work even when the window isn't focused.
 
 ### Is it safe?
 
-Yes. DubTrackr AutoClickr is fully open source — every line is in this repo, and the
-released `.exe` matches the source (verify the SHA-256 on the release page).
+DubTrackr AutoClickr is fully open source. Official GitHub release executables starting
+with v1.0.1 are Authenticode-signed and RFC 3161 timestamped through Microsoft Azure
+Artifact Signing. In **Properties → Digital Signatures**, verify that Windows reports a
+valid signature from **Daniel Meier**. The release page also publishes the exact SHA-256.
 
-Because it's an **unsigned, PyInstaller-packaged** app that simulates mouse/keyboard
-input, a few antivirus engines flag it *heuristically*. On
-[VirusTotal](https://www.virustotal.com/gui/file/e3475397677d60eac0f60faee2e04c6dc64a609fa6893c1c4422246b951f7814),
-a handful of engines flag it with generic ML labels (e.g. Microsoft `Wacatac.B!ml`, a
-well-known false positive for PyInstaller apps) — while **all major engines report it
-clean** and VirusTotal's **behavioral sandbox finds no malicious activity** (no network
-calls, no dropped files, nothing).
+The app simulates mouse and keyboard input, so SmartScreen or antivirus software can still
+scrutinize a new release. A valid signature proves who published the file and that it has
+not changed since signing; it does not override game rules or antivirus policy.
 
-Prefer not to trust a pre-built binary? Build it yourself from source (below). Code
-signing via the [SignPath Foundation](https://signpath.io/solutions/open-source-community)
-OSS program is planned, which will clear these heuristic flags.
+Prefer not to trust a pre-built binary? Build it yourself from source (below). Runtime
+and build dependencies are pinned for the release build.
 
 ## Build from source
 
@@ -57,9 +54,11 @@ python dubtrackr_autoclicker.py            # run from source
 Build the exe:
 
 ```bash
-pip install pyinstaller
+pip install -r requirements-build.txt
 python build.py                            # produces dist/DubtrackrAutoClicker.exe
 ```
+
+The v1.0.1 release build uses Python 3.14.6 (recorded in `.python-version`).
 
 ## Usage notes
 

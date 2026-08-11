@@ -7,7 +7,7 @@ A lightweight dual-engine autoclicker with dubtrackr branding.
   * Adjustable interval (ms) / CPS with human-like randomized jitter.
   * Mouse: left/right/middle, single or double click.
   * Keyboard: tap-repeat OR hold-down any key (space, w, a, s, d, ...).
-  * Fortnite pickaxe preset (one swing per click).
+  * Droid Tycoon scrap-table/crafting preset.
   * Windows 11 light / dark (follows system) + accent theme picker.
   * Settings persist between launches.
 
@@ -28,10 +28,10 @@ import customtkinter as ctk
 from pynput.mouse import Button, Controller as MouseController
 from pynput.keyboard import (Controller as KeyboardController, Key,
                              Listener as KeyListener)
+from version import VERSION
 
 APP_NAME = "DubTrackr AutoClickr"
 WEBSITE = "https://www.dubtrackr.win"
-VERSION = "1.0"
 
 # ---- brand palette (from dubtrackr.win) ----
 BRAND_A = "#39a8ff"          # gradient start (cyan)
@@ -470,10 +470,10 @@ class App(ctk.CTk):
         bar = ctk.CTkFrame(self, fg_color="transparent")
         bar.pack(fill="x", padx=16, pady=(4, 14))
 
-        ctk.CTkButton(bar, text="⚡ Fortnite pickaxe", width=150, height=30,
+        ctk.CTkButton(bar, text="⚡ Droid Tycoon scrap/craft", width=190, height=30,
                       fg_color=("#e6ecf6", "#0b1a30"), text_color=("#334", "#cdd9ec"),
                       hover_color=("#d7e0ee", "#132444"),
-                      command=self.apply_pickaxe).pack(side="left")
+                      command=self.apply_droid_tycoon_preset).pack(side="left")
 
         self.appearance = ctk.CTkSegmentedButton(
             bar, values=["System", "Light", "Dark"],
@@ -618,10 +618,11 @@ class App(ctk.CTk):
         k_ms = round(self.s["k_interval"] * self.s["k_jitter"] / 100.0)
         self.k_jitter_ms.configure(text=f"±{k_ms}ms")
 
-    def apply_pickaxe(self):
+    def apply_droid_tycoon_preset(self):
+        """Use the measured Droid Tycoon scrap-table/crafting swing rate."""
         self.m_button.set("Left")
         self.m_click.set("Single")
-        self._set_entry(self.m_cps_e, "2.86")   # ~350ms, pickaxe sweet spot
+        self._set_entry(self.m_cps_e, "2.86")   # ~350ms per scrap/crafting swing
         self._set_entry(self.m_jitter_e, 10)
         self._on_change()
 

@@ -78,7 +78,7 @@ def main():
             os.path.join(HERE, "dubtrackr_autoclicker.py"),
         ]
         print(" ".join(cmd))
-        subprocess.check_call(cmd)
+        subprocess.check_call(cmd, cwd=HERE)
     print("\nDone -> dist/DubtrackrAutoClicker.exe")
 
 

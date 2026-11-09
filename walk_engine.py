@@ -16,6 +16,7 @@ class WalkEngine(threading.Thread):
         self._held = None
         self._alive = True
         self._interval = 30.0
+        self._forward_seconds = 1.0
         self.error = None
 
     @property
@@ -36,7 +37,20 @@ class WalkEngine(threading.Thread):
         with self._condition:
             self._interval = seconds
 
-    def start_walking(self, delay=0):
+    @property
+    def forward_seconds(self):
+        with self._condition:
+            return self._forward_seconds
+
+    @forward_seconds.setter
+    def forward_seconds(self, seconds):
+        seconds = float(seconds)
+        if not math.isfinite(seconds) or not 0.1 <= seconds <= 10:
+            raise ValueError("Enter a return time from 0.1 to 10 seconds.")
+        with self._condition:
+            self._forward_seconds = seconds
+
+    def start_walking(self, delay=0, once=False):
         with self._condition:
             if not self._alive or self.active:
                 return
@@ -46,6 +60,7 @@ class WalkEngine(threading.Thread):
             self.error = None
             self._cancel = threading.Event()
             self._delay = delay
+            self._once = once
             self._condition.notify()
 
     def stop_walking(self):
@@ -66,13 +81,13 @@ class WalkEngine(threading.Thread):
             else:
                 self._held = None
 
-    def _hold(self, key, cancel):
+    def _hold(self, key, cancel, seconds=1.0):
         with self._condition:
             if cancel.is_set():
                 return False
             self._held = key
             self._press(key)
-        cancel.wait(1.0)
+        cancel.wait(seconds)
         with self._condition:
             self._release_held()
         return not cancel.is_set()
@@ -83,14 +98,18 @@ class WalkEngine(threading.Thread):
                 self._condition.wait_for(lambda: not self._alive or self.active)
                 if not self._alive:
                     return
-                cancel, delay = self._cancel, self._delay
+                cancel, delay, once = self._cancel, self._delay, self._once
             try:
                 if cancel.wait(delay):
                     continue
                 while not cancel.is_set():
+                    forward_seconds = self.forward_seconds
                     if not self._hold("s", cancel):
                         break
-                    if not self._hold("w", cancel):
+                    if not self._hold("w", cancel, forward_seconds):
+                        break
+                    if once:
+                        cancel.set()
                         break
                     cancel.wait(self.interval)
             except Exception as exc:

@@ -50,6 +50,21 @@ class WalkEngineTests(unittest.TestCase):
         time.sleep(0.05)
         self.assertEqual([(a, k) for a, k, _ in self.events], [("down", "s"), ("up", "s")])
 
+    def test_adjustable_return_and_single_cycle(self):
+        self.engine.forward_seconds = 0.25
+        self.engine.interval = 0.1
+        self.engine.start_walking(once=True)
+        self.wait_for(4)
+        time.sleep(0.2)
+        self.assertAlmostEqual(self.events[3][2] - self.events[2][2], 0.25, delta=0.15)
+        self.assertEqual(len(self.events), 4)
+        self.assertFalse(self.engine.active)
+
+    def test_invalid_return_duration_is_rejected(self):
+        for value in (0, -1, 0.09, 10.01, float("nan"), float("inf")):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                self.engine.forward_seconds = value
+
     def test_stop_releases_w_immediately(self):
         self.engine.start_walking()
         self.wait_for(3)

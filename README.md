@@ -12,7 +12,7 @@ keyboard repetition and walking. Part of the
 - Mouse clicks, keyboard repetition and walking run separately, each with its
   own Start/Stop button and toggle hotkey.
 - DubTrackr AutoWalkr: hold **S for 1 second**, release it, then hold
-  **W for 1 second** and release it. Set the wait between cycles in seconds
+  **W for an adjustable return time** and release it. Set the wait between cycles in seconds
   or minutes (default: 30 seconds). Walking starts after a 3-second delay
   so you can switch to the game. **F8** starts or stops walking.
 - **Mouse speed** — one control: clicks per second (CPS). Handles fast spam
@@ -36,8 +36,15 @@ run it. Press each engine's hotkey (default **F6** mouse, **F7** keyboard,
 
 ### DubTrackr AutoWalkr
 
-The wait begins after W is released. A 30-second wait means a 2-second walk
-cycle followed by 30 seconds without movement. The wait is saved between launches
+AutoWalkr targets normal jogging without walk or tactical sprint modifiers.
+The backward leg stays at 1 second. Return time starts at 1.05 seconds as a
+starting point for calibration. Use **Test once** to try one cycle. If you finish behind
+your starting spot, increase Return time. If you go past it, decrease Return time.
+The adjustment buttons change it by 0.01 seconds; the field accepts 0.1 to 10 seconds.
+Your chosen return time is saved between launches.
+
+The wait begins after W is released. With the starting timing, a 30-second wait
+means a 2.05-second cycle followed by 30 seconds without movement. The wait is saved between launches
 and accepts 0.1 seconds to 24 hours. Stopping or closing the app releases the
 movement key immediately. Starting again begins with S.
 
@@ -46,8 +53,8 @@ Walking sends input to the active window. Switch to the game during the
 run through the keyboard control while walking is active. Choose separate
 hotkeys other than W or S.
 
-Equal key holds can bring you back near your starting position. Collisions,
-different forward/backward speeds and game timing can cause drift.
+AutoWalkr does not measure your position. Collisions, movement modifiers,
+acceleration and game timing can cause drift even after calibration.
 
 ### Is it safe?
 

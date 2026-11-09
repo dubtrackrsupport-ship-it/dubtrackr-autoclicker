@@ -39,6 +39,7 @@ class AppWalkTests(unittest.TestCase):
         self.app.walk_engine.error = None
         self.app._set_entry(self.app.k_key_e, "space")
         self.app._set_entry(self.app.w_every_e, "30")
+        self.app._set_entry(self.app.w_forward_e, "1.05")
         self.app.w_unit.set("sec")
         self.app._on_change()
 
@@ -51,6 +52,31 @@ class AppWalkTests(unittest.TestCase):
         self.assertEqual(saved["w_interval"], 2.5)
         self.assertEqual(saved["w_unit"], "min")
         self.assertEqual(saved["w_hotkey"], "f8")
+        self.assertEqual(saved["w_forward"], 1.05)
+
+    def test_return_time_adjustment_is_saved(self):
+        self.app._adjust_return(0.01)
+        self.assertAlmostEqual(self.app.walk_engine.forward_seconds, 1.06)
+        self.assertAlmostEqual(module.load_settings()["w_forward"], 1.06)
+        self.app._adjust_return(-0.01)
+        self.assertAlmostEqual(self.app.walk_engine.forward_seconds, 1.05)
+
+    def test_invalid_return_time_stops_and_preserves_last_saved_value(self):
+        self.app._on_walk_change()
+        self.app.toggle_walk()
+        for value in ("", "nan", "inf", "0", "-1", "10.01"):
+            self.app._set_entry(self.app.w_forward_e, value)
+            self.assertFalse(self.app._on_walk_change())
+            self.assertFalse(self.app.walk_engine.active)
+        self.assertEqual(module.load_settings()["w_forward"], 1.05)
+
+    def test_test_once_uses_single_cycle_and_disables_test_button(self):
+        with patch.object(self.app.walk_engine, "start_walking", wraps=self.app.walk_engine.start_walking) as start:
+            self.app.toggle_walk(once=True)
+            start.assert_called_once_with(delay=3, once=True)
+        self.assertEqual(self.app.w_test.cget("state"), "disabled")
+        self.app.toggle_walk()
+        self.assertEqual(self.app.w_test.cget("state"), "normal")
 
     def test_invalid_field_stops_walking_without_saving_invalid_value(self):
         self.app.toggle_walk()

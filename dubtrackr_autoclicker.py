@@ -7,7 +7,7 @@ A lightweight autoclicker with separate mouse, keyboard and walking controls.
   * Adjustable interval (ms) / CPS with human-like randomized jitter.
   * Mouse: left/right/middle, single or double click.
   * Keyboard: tap-repeat OR hold-down any key (space, w, a, s, d, ...).
-  * Walking: hold S for one second, then W for one second, with a saved wait.
+  * Walking: hold S for one second, then W for an adjustable return time.
   * Droid Tycoon scrap-table/crafting preset.
   * Windows 11 light / dark (follows system) + accent theme picker.
   * Settings persist between launches.
@@ -121,7 +121,7 @@ DEFAULTS = {
     "m_hotkey": "f6",
     "k_key": "space", "k_hold": False, "k_interval": 200, "k_unit": "ms",
     "k_jitter": 10, "k_hotkey": "f7",
-    "w_interval": 30, "w_unit": "sec", "w_hotkey": "f8",
+    "w_interval": 30, "w_unit": "sec", "w_hotkey": "f8", "w_forward": 1.05,
 }
 
 
@@ -258,6 +258,7 @@ class App(ctk.CTk):
         self.walk_hotkey = key_from_name(self.s["w_hotkey"])
         self.capture_target = None
         self._keys_down = set()
+        self._walk_ui_active = False
         self._held_key = None
 
         self._build()
@@ -484,8 +485,25 @@ class App(ctk.CTk):
         f.pack(fill="x", padx=16, pady=(0, 6))
         ctk.CTkLabel(f, text="DubTrackr AutoWalkr", font=("Segoe UI", 14, "bold")).pack(
             anchor="w", padx=16, pady=(12, 0))
-        ctk.CTkLabel(f, text="Hold S for 1 second, then W for 1 second.",
+        ctk.CTkLabel(f, text="Normal jogging: S for 1 second, then W for the return time.",
                      font=("Segoe UI", 12)).pack(anchor="w", padx=16)
+
+        timing = ctk.CTkFrame(f, fg_color="transparent")
+        timing.pack(fill="x", padx=16, pady=(6, 0))
+        ctk.CTkLabel(timing, text="Return time (sec)", font=("Segoe UI", 12)).pack(side="left")
+        self.w_forward_e = ctk.CTkEntry(timing, width=70, justify="right",
+                                        font=("Cascadia Mono", 12))
+        self.w_forward_e.pack(side="left", padx=(12, 8))
+        self.w_forward_e.bind("<KeyRelease>", lambda _ev: self._on_walk_change())
+        ctk.CTkButton(timing, text="-0.01", width=62, height=28,
+                      fg_color=("#e6ecf6", "#0b1a30"), text_color=("#334", "#cdd9ec"),
+                      command=lambda: self._adjust_return(-0.01)).pack(side="left", padx=(0, 6))
+        ctk.CTkButton(timing, text="+0.01", width=62, height=28,
+                      fg_color=("#e6ecf6", "#0b1a30"), text_color=("#334", "#cdd9ec"),
+                      command=lambda: self._adjust_return(0.01)).pack(side="left")
+        ctk.CTkLabel(f, text="Stop short? Increase the return time. Go too far? Decrease it.",
+                     font=("Segoe UI", 11), wraplength=480, justify="left").pack(
+                         anchor="w", padx=16, pady=(4, 0))
 
         row = ctk.CTkFrame(f, fg_color="transparent")
         row.pack(fill="x", padx=16, pady=(6, 0))
@@ -509,11 +527,18 @@ class App(ctk.CTk):
         self.w_status = ctk.CTkLabel(f, text="Starts after 3 seconds. Use F8 in the game.",
                                      font=("Segoe UI", 11), wraplength=480, justify="left")
         self.w_status.pack(anchor="w", padx=16, pady=(4, 0))
-        self.w_start = ctk.CTkButton(f, text="Start walking", height=36,
+        controls = ctk.CTkFrame(f, fg_color="transparent")
+        controls.pack(fill="x", padx=16, pady=(6, 12))
+        self.w_test = ctk.CTkButton(controls, text="Test once", width=100, height=36,
+                                    fg_color=("#e6ecf6", "#0b1a30"),
+                                    text_color=("#334", "#cdd9ec"),
+                                    command=lambda: self.toggle_walk(once=True))
+        self.w_test.pack(side="right", padx=(8, 0))
+        self.w_start = ctk.CTkButton(controls, text="Start walking", height=36,
                                      font=("Segoe UI Semibold", 14, "bold"),
                                      fg_color=self.accent, hover_color=darken(self.accent),
                                      command=self.toggle_walk)
-        self.w_start.pack(fill="x", padx=16, pady=(6, 12))
+        self.w_start.pack(side="left", fill="x", expand=True)
 
     def _build_footer(self):
         bar = ctk.CTkFrame(self, fg_color="transparent")
@@ -586,6 +611,7 @@ class App(ctk.CTk):
         self.k_hotkey_btn.configure(text=key_label(self.key_hotkey).upper())
         self.w_unit.set(self.s["w_unit"] if self.s["w_unit"] in ("sec", "min") else "sec")
         self._set_entry(self.w_every_e, self.s["w_interval"])
+        self._set_entry(self.w_forward_e, self.s["w_forward"])
         self.w_hotkey_btn.configure(text=key_label(self.walk_hotkey).upper())
         self._on_walk_change()
         self._on_mode_change()
@@ -804,9 +830,8 @@ class App(ctk.CTk):
         try:
             value = float(self.w_every_e.get())
             seconds = value * UNITS[self.w_unit.get()] / 1000
-            if not math.isfinite(seconds):
+            if not math.isfinite(seconds) or not 0.1 <= seconds <= 86400:
                 raise ValueError()
-            self.walk_engine.interval = seconds
         except (ValueError, OverflowError, KeyError):
             if self.walk_engine.active:
                 self.walk_engine.stop_walking()
@@ -814,15 +839,36 @@ class App(ctk.CTk):
             self.w_status.configure(text="Enter a wait from 0.1 seconds to 24 hours.",
                                     text_color=COL_STOP)
             return False
+        try:
+            forward_seconds = float(self.w_forward_e.get())
+            self.walk_engine.forward_seconds = forward_seconds
+        except (ValueError, OverflowError):
+            self.walk_engine.stop_walking()
+            self._sync_walk_running()
+            self.w_status.configure(text="Enter a return time from 0.1 to 10 seconds.",
+                                    text_color=COL_STOP)
+            return False
+        self.walk_engine.interval = seconds
         self.s["w_interval"] = value
         self.s["w_unit"] = self.w_unit.get()
+        self.s["w_forward"] = forward_seconds
         save_settings(self.s)
         self.w_status.configure(
             text=f"Starts after 3 seconds. Use {key_label(self.walk_hotkey).upper()} in the game.",
             text_color=("#4b596d", "#bac7da"))
         return True
 
-    def toggle_walk(self):
+    def _adjust_return(self, amount):
+        try:
+            value = float(self.w_forward_e.get())
+            if not math.isfinite(value):
+                raise ValueError()
+        except ValueError:
+            value = self.s["w_forward"]
+        self._set_entry(self.w_forward_e, f"{min(10, max(0.1, value + amount)):.2f}")
+        self._on_walk_change()
+
+    def toggle_walk(self, once=False):
         if self.walk_engine.active:
             self.walk_engine.stop_walking()
         else:
@@ -839,16 +885,20 @@ class App(ctk.CTk):
                 self.w_status.configure(text="Change the W or S hotkey before walking.",
                                         text_color=COL_STOP)
                 return
-            self.walk_engine.start_walking(delay=3)
+            self.walk_engine.start_walking(delay=3, once=once)
         self._sync_walk_running()
 
     def _sync_walk_running(self):
         on = self.walk_engine.active
+        self._walk_ui_active = on
+        self.w_test.configure(state="disabled" if on else "normal")
         self.w_start.configure(text="Stop walking" if on else "Start walking",
                                fg_color=COL_STOP if on else self.accent,
                                hover_color=darken(COL_STOP if on else self.accent))
 
     def _poll_walk(self):
+        if self.walk_engine.active != self._walk_ui_active:
+            self._sync_walk_running()
         if self.walk_engine.error:
             self._sync_walk_running()
             self.w_status.configure(text="Walking stopped because keyboard input failed. Try again.",

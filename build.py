@@ -6,6 +6,7 @@
 Produces dist/DubtrackrAutoClicker.exe (single file, windowed, branded icon).
 """
 import os
+import argparse
 import subprocess
 import sys
 import tempfile
@@ -54,6 +55,9 @@ VSVersionInfo(
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--distpath", default=os.path.join(HERE, "dist"))
+    args = parser.parse_args()
     import customtkinter
     ctk_dir = os.path.dirname(customtkinter.__file__)
     sep = ";" if os.name == "nt" else ":"
@@ -67,6 +71,7 @@ def main():
             sys.executable, "-m", "PyInstaller",
             "--noconfirm", "--clean", "--onefile", "--windowed",
             "--name", "DubtrackrAutoClicker",
+            "--distpath", os.path.abspath(args.distpath),
             "--icon", os.path.join(HERE, "dubtrackr.ico"),
             "--version-file", version_file,
             "--add-data", f"{os.path.join(HERE, 'dubtrackr.ico')}{sep}.",
@@ -79,7 +84,7 @@ def main():
         ]
         print(" ".join(cmd))
         subprocess.check_call(cmd, cwd=HERE)
-    print("\nDone -> dist/DubtrackrAutoClicker.exe")
+    print(f"\nDone -> {os.path.join(args.distpath, 'DubtrackrAutoClicker.exe')}")
 
 
 if __name__ == "__main__":

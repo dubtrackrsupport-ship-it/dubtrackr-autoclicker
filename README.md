@@ -1,16 +1,20 @@
 
 # DubTrackr AutoClickr
 
-A lightweight, open-source **dual-engine autoclicker** — click your mouse *and*
-auto-fire a keyboard key at the same time, each fully independent. Part of the
+A lightweight, open-source autoclicker with separate controls for mouse clicks,
+keyboard repetition and walking. Part of the
 [Dubtrackr Network](https://www.dubtrackr.win).
 
 <img width="559" height="499" alt="Screenshot 2026-07-20 152436" src="https://github.com/user-attachments/assets/fc557385-957c-4df9-a42e-4589a44e4e6b" />
 
 ## Features
 
-- **Two independent engines** — a mouse clicker and a keyboard clicker run
-  separately, each with its own toggle hotkey.
+- Mouse clicks, keyboard repetition and walking run separately, each with its
+  own Start/Stop button and toggle hotkey.
+- Walk back and forward: hold **S for 1 second**, release it, then hold
+  **W for 1 second** and release it. Set the wait between cycles in seconds
+  or minutes (default: 30 seconds). Walking starts after a 3-second delay
+  so you can switch to the game. **F8** starts or stops walking.
 - **Mouse speed** — one control: clicks per second (CPS). Handles fast spam
   and slow taps alike (e.g. 0.5 CPS = one click every 2 seconds).
 - **Keyboard rate** — one simple control: press **every N ms / sec / min**
@@ -27,8 +31,23 @@ auto-fire a keyboard key at the same time, each fully independent. Part of the
 ## Download & run
 
 Grab `DubtrackrAutoClicker.exe` from the [Releases](https://github.com/dubtrackrsupport-ship-it/dubtrackr-autoclicker/releases/latest) page and
-run it. Press each engine's hotkey (default **F6** mouse, **F7** keyboard) to
-toggle it — the hotkeys work even when the window isn't focused.
+run it. Press each engine's hotkey (default **F6** mouse, **F7** keyboard,
+**F8** walking) to toggle it. The hotkeys work when the window isn't focused.
+
+### Walking
+
+The wait begins after W is released. A 30-second wait means a 2-second walk
+cycle followed by 30 seconds without movement. The wait is saved between launches
+and accepts 0.1 seconds to 24 hours. Stopping or closing the app releases the
+movement key immediately. Starting again begins with S.
+
+Walking sends input to the active window. Switch to the game during the
+3-second startup delay, or use F8 while the game is focused. W and S cannot
+run through the keyboard control while walking is active. Choose separate
+hotkeys other than W or S.
+
+Equal key holds can bring you back near your starting position. Collisions,
+different forward/backward speeds and game timing can cause drift.
 
 ### Is it safe?
 

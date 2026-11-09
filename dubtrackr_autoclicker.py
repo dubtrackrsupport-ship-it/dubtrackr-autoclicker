@@ -1,12 +1,13 @@
 """
-DubTrackr AutoClickr  —  Dual HUD
+DubTrackr AutoClickr
 ==================================
-A lightweight dual-engine autoclicker with dubtrackr branding.
+A lightweight autoclicker with separate mouse, keyboard and walking controls.
 
   * Independent MOUSE and KEYBOARD engines, each with its own toggle hotkey.
   * Adjustable interval (ms) / CPS with human-like randomized jitter.
   * Mouse: left/right/middle, single or double click.
   * Keyboard: tap-repeat OR hold-down any key (space, w, a, s, d, ...).
+  * Walking: hold S for one second, then W for one second, with a saved wait.
   * Droid Tycoon scrap-table/crafting preset.
   * Windows 11 light / dark (follows system) + accent theme picker.
   * Settings persist between launches.
@@ -17,6 +18,7 @@ Requires:  pip install customtkinter pynput
 
 import colorsys
 import json
+import math
 import os
 import random
 import sys
@@ -29,6 +31,7 @@ from pynput.mouse import Button, Controller as MouseController
 from pynput.keyboard import (Controller as KeyboardController, Key,
                              Listener as KeyListener)
 from version import VERSION
+from walk_engine import WalkEngine
 
 APP_NAME = "DubTrackr AutoClickr"
 WEBSITE = "https://www.dubtrackr.win"
@@ -118,6 +121,7 @@ DEFAULTS = {
     "m_hotkey": "f6",
     "k_key": "space", "k_hold": False, "k_interval": 200, "k_unit": "ms",
     "k_jitter": 10, "k_hotkey": "f7",
+    "w_interval": 30, "w_unit": "sec", "w_hotkey": "f8",
 }
 
 
@@ -244,20 +248,26 @@ class App(ctk.CTk):
 
         self.mouse_engine = RepeatEngine(self.do_mouse_click)
         self.key_engine = RepeatEngine(self.do_key_action)
+        self.walk_engine = WalkEngine(kbd.press, kbd.release)
         self.mouse_engine.start()
         self.key_engine.start()
+        self.walk_engine.start()
 
         self.mouse_hotkey = key_from_name(self.s["m_hotkey"])
         self.key_hotkey = key_from_name(self.s["k_hotkey"])
+        self.walk_hotkey = key_from_name(self.s["w_hotkey"])
         self.capture_target = None
+        self._keys_down = set()
         self._held_key = None
 
         self._build()
         self._apply_settings_to_ui()
         self._refresh_cps()
         self._autosize()
+        self.after(100, self._poll_walk)
 
-        self.listener = KeyListener(on_press=self.on_global_key)
+        self.listener = KeyListener(on_press=self.on_global_key,
+                                    on_release=self.on_global_release)
         self.listener.start()
         self.protocol("WM_DELETE_WINDOW", self.on_close)
 
@@ -277,6 +287,8 @@ class App(ctk.CTk):
     def do_key_action(self):
         k = parse_key(self.s["k_key"])
         if k is None:
+            return
+        if self.walk_engine.active and k in ("w", "s"):
             return
         with _inject_lock:
             _injecting.add(k)
@@ -317,6 +329,7 @@ class App(ctk.CTk):
 
         self._build_mouse(grid)
         self._build_keyboard(grid)
+        self._build_walk()
         self._build_footer()
 
     def _build_header(self):
@@ -466,6 +479,42 @@ class App(ctk.CTk):
                                      command=self.toggle_key)
         self.k_start.pack(fill="x", padx=16, pady=(8, 14))
 
+    def _build_walk(self):
+        f = ctk.CTkFrame(self, corner_radius=14)
+        f.pack(fill="x", padx=16, pady=(0, 6))
+        ctk.CTkLabel(f, text="Walk back and forward", font=("Segoe UI", 14, "bold")).pack(
+            anchor="w", padx=16, pady=(12, 0))
+        ctk.CTkLabel(f, text="Hold S for 1 second, then W for 1 second.",
+                     font=("Segoe UI", 12)).pack(anchor="w", padx=16)
+
+        row = ctk.CTkFrame(f, fg_color="transparent")
+        row.pack(fill="x", padx=16, pady=(6, 0))
+        ctk.CTkLabel(row, text="Wait between cycles", font=("Segoe UI", 12)).pack(side="left")
+        self.w_every_e = ctk.CTkEntry(row, width=70, justify="right",
+                                      font=("Cascadia Mono", 12))
+        self.w_every_e.pack(side="left", padx=(12, 8))
+        self.w_every_e.bind("<KeyRelease>", lambda _ev: self._on_walk_change())
+        self.w_unit = ctk.CTkOptionMenu(row, values=["sec", "min"], width=70,
+                                        fg_color=self.accent, button_color=darken(self.accent),
+                                        command=lambda _v: self._on_walk_change())
+        self.w_unit.pack(side="left")
+        self.w_hotkey_btn = ctk.CTkButton(row, text="F8", width=64, height=28,
+                                          fg_color=("#e6ecf6", "#0b1a30"),
+                                          text_color=self.accent,
+                                          hover_color=("#d7e0ee", "#132444"),
+                                          command=lambda: self._begin_capture("walk"))
+        self.w_hotkey_btn.pack(side="right")
+        ctk.CTkLabel(row, text="Hotkey", font=("Segoe UI", 11)).pack(side="right", padx=8)
+
+        self.w_status = ctk.CTkLabel(f, text="Starts after 3 seconds. Use F8 in the game.",
+                                     font=("Segoe UI", 11), wraplength=480, justify="left")
+        self.w_status.pack(anchor="w", padx=16, pady=(4, 0))
+        self.w_start = ctk.CTkButton(f, text="Start walking", height=36,
+                                     font=("Segoe UI Semibold", 14, "bold"),
+                                     fg_color=self.accent, hover_color=darken(self.accent),
+                                     command=self.toggle_walk)
+        self.w_start.pack(fill="x", padx=16, pady=(6, 12))
+
     def _build_footer(self):
         bar = ctk.CTkFrame(self, fg_color="transparent")
         bar.pack(fill="x", padx=16, pady=(4, 14))
@@ -535,6 +584,10 @@ class App(ctk.CTk):
         self._set_entry(self.k_every_e, self._fmt_value(s["k_interval"], s.get("k_unit", "ms")))
         self._set_entry(self.k_jitter_e, s["k_jitter"])
         self.k_hotkey_btn.configure(text=key_label(self.key_hotkey).upper())
+        self.w_unit.set(self.s["w_unit"] if self.s["w_unit"] in ("sec", "min") else "sec")
+        self._set_entry(self.w_every_e, self.s["w_interval"])
+        self.w_hotkey_btn.configure(text=key_label(self.walk_hotkey).upper())
+        self._on_walk_change()
         self._on_mode_change()
 
         self.appearance.set(s["appearance"])
@@ -591,6 +644,10 @@ class App(ctk.CTk):
         s["k_unit"] = unit
         s["k_interval"] = max(1, int(round(self._read_float(self.k_every_e, 200) * UNITS[unit])))
         s["k_jitter"] = self._read_float(self.k_jitter_e, 10)
+        if self.walk_engine.active and parse_key(s["k_key"]) in ("w", "s"):
+            self.key_engine.stop_clicking()
+            self._release_held()
+            self._sync_key_running(False)
 
         self.mouse_engine.interval = s["m_interval"] / 1000.0
         self.mouse_engine.jitter = s["m_jitter"] / 100.0
@@ -644,6 +701,10 @@ class App(ctk.CTk):
         self.k_cps_lbl.configure(text_color=acc2)
         self.m_hotkey_btn.configure(text_color=acc)
         self.k_hotkey_btn.configure(text_color=acc2)
+        self.w_hotkey_btn.configure(text_color=acc)
+        self.w_unit.configure(fg_color=acc, button_color=dk,
+                              button_hover_color=darken(acc, 0.7))
+        self._sync_walk_running()
         # segmented selectors + mouse-button menu
         self.m_click.configure(selected_color=acc, selected_hover_color=dk)
         self.k_mode.configure(selected_color=acc2, selected_hover_color=dk2)
@@ -675,37 +736,124 @@ class App(ctk.CTk):
     # ---------- hotkeys ----------
     def _begin_capture(self, target):
         self.capture_target = target
-        btn = self.m_hotkey_btn if target == "mouse" else self.k_hotkey_btn
+        btn = {"mouse": self.m_hotkey_btn, "key": self.k_hotkey_btn,
+               "walk": self.w_hotkey_btn}[target]
         btn.configure(text="press…")
 
     def on_global_key(self, key):
+        # Ignore walking input, including delayed Windows hook notifications.
+        if key_label(key).lower() in ("s", "w") and self.walk_engine.active:
+            return
+        label = key_label(key).lower()
+        if label in self._keys_down:
+            return
+        self._keys_down.add(label)
         if self.capture_target:
             target, self.capture_target = self.capture_target, None
+            hotkeys = {"mouse": self.mouse_hotkey, "key": self.key_hotkey,
+                       "walk": self.walk_hotkey}
+            if (key_label(key).lower() in ("s", "w") or
+                    any(self._match(key, value) for name, value in hotkeys.items()
+                        if name != target)):
+                self.after(0, lambda: self._reject_hotkey(target))
+                return
             if target == "mouse":
                 self.mouse_hotkey = key
                 self.s["m_hotkey"] = key_label(key)
                 self.after(0, lambda: self.m_hotkey_btn.configure(
                     text=key_label(key).upper()))
-            else:
+            elif target == "key":
                 self.key_hotkey = key
                 self.s["k_hotkey"] = key_label(key)
                 self.after(0, lambda: self.k_hotkey_btn.configure(
                     text=key_label(key).upper()))
+            else:
+                self.walk_hotkey = key
+                self.s["w_hotkey"] = key_label(key)
+                self.after(0, lambda: self.w_hotkey_btn.configure(
+                    text=key_label(key).upper()))
             save_settings(self.s)
             return
         with _inject_lock:
-            if key in _injecting:
+            if any(self._match(key, injected) for injected in _injecting):
                 return
         if self._match(key, self.mouse_hotkey):
             self.after(0, self.toggle_mouse)
         elif self._match(key, self.key_hotkey):
             self.after(0, self.toggle_key)
+        elif self._match(key, self.walk_hotkey):
+            self.after(0, self.toggle_walk)
+
+    def on_global_release(self, key):
+        self._keys_down.discard(key_label(key).lower())
+
+    def _reject_hotkey(self, target):
+        btn = {"mouse": self.m_hotkey_btn, "key": self.k_hotkey_btn,
+               "walk": self.w_hotkey_btn}[target]
+        value = {"mouse": self.mouse_hotkey, "key": self.key_hotkey,
+                 "walk": self.walk_hotkey}[target]
+        btn.configure(text=key_label(value).upper())
+        self.w_status.configure(text="Choose a separate hotkey other than W or S.",
+                                text_color=COL_STOP)
 
     @staticmethod
     def _match(a, b):
-        if isinstance(a, Key) and isinstance(b, Key):
-            return a == b
-        return getattr(a, "char", None) and getattr(a, "char", None) == getattr(b, "char", None)
+        return key_label(a).lower() == key_label(b).lower()
+
+    def _on_walk_change(self):
+        try:
+            value = float(self.w_every_e.get())
+            seconds = value * UNITS[self.w_unit.get()] / 1000
+            if not math.isfinite(seconds):
+                raise ValueError()
+            self.walk_engine.interval = seconds
+        except (ValueError, OverflowError, KeyError):
+            if self.walk_engine.active:
+                self.walk_engine.stop_walking()
+            self._sync_walk_running()
+            self.w_status.configure(text="Enter a wait from 0.1 seconds to 24 hours.",
+                                    text_color=COL_STOP)
+            return False
+        self.s["w_interval"] = value
+        self.s["w_unit"] = self.w_unit.get()
+        save_settings(self.s)
+        self.w_status.configure(
+            text=f"Starts after 3 seconds. Use {key_label(self.walk_hotkey).upper()} in the game.",
+            text_color=("#4b596d", "#bac7da"))
+        return True
+
+    def toggle_walk(self):
+        if self.walk_engine.active:
+            self.walk_engine.stop_walking()
+        else:
+            if not self._on_walk_change():
+                return
+            self._on_change()
+            keyboard_on = self.key_engine.running.is_set() or self._held_key is not None
+            if keyboard_on and parse_key(self.s["k_key"]) in ("w", "s"):
+                self.w_status.configure(text="Stop the keyboard's W or S action before walking.",
+                                        text_color=COL_STOP)
+                return
+            if any(key_label(k).lower() in ("w", "s") for k in
+                   (self.mouse_hotkey, self.key_hotkey, self.walk_hotkey)):
+                self.w_status.configure(text="Change the W or S hotkey before walking.",
+                                        text_color=COL_STOP)
+                return
+            self.walk_engine.start_walking(delay=3)
+        self._sync_walk_running()
+
+    def _sync_walk_running(self):
+        on = self.walk_engine.active
+        self.w_start.configure(text="Stop walking" if on else "Start walking",
+                               fg_color=COL_STOP if on else self.accent,
+                               hover_color=darken(COL_STOP if on else self.accent))
+
+    def _poll_walk(self):
+        if self.walk_engine.error:
+            self._sync_walk_running()
+            self.w_status.configure(text="Walking stopped because keyboard input failed. Try again.",
+                                    text_color=COL_STOP)
+        self.after(100, self._poll_walk)
 
     # ---------- toggles ----------
     def toggle_mouse(self):
@@ -724,6 +872,10 @@ class App(ctk.CTk):
 
     def toggle_key(self):
         self._on_change()
+        if self.walk_engine.active and parse_key(self.s["k_key"]) in ("w", "s"):
+            self.w_status.configure(text="Stop walking before using W or S in the keyboard control.",
+                                    text_color=COL_STOP)
+            return
         if self.s["k_hold"] and self._held_key is not None:
             # currently holding -> release & stop
             self.key_engine.stop_clicking()
@@ -747,6 +899,8 @@ class App(ctk.CTk):
 
     # ---------- shutdown ----------
     def on_close(self):
+        self.walk_engine.shutdown()
+        self.walk_engine.join(timeout=2)
         self.mouse_engine.shutdown()
         self.key_engine.shutdown()
         self._release_held()

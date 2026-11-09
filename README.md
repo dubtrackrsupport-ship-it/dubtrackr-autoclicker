@@ -11,7 +11,7 @@ keyboard repetition and walking. Part of the
 
 - Mouse clicks, keyboard repetition and walking run separately, each with its
   own Start/Stop button and toggle hotkey.
-- Walk back and forward: hold **S for 1 second**, release it, then hold
+- DubTrackr AutoWalkr: hold **S for 1 second**, release it, then hold
   **W for 1 second** and release it. Set the wait between cycles in seconds
   or minutes (default: 30 seconds). Walking starts after a 3-second delay
   so you can switch to the game. **F8** starts or stops walking.
@@ -34,7 +34,7 @@ Grab `DubtrackrAutoClicker.exe` from the [Releases](https://github.com/dubtrackr
 run it. Press each engine's hotkey (default **F6** mouse, **F7** keyboard,
 **F8** walking) to toggle it. The hotkeys work when the window isn't focused.
 
-### Walking
+### DubTrackr AutoWalkr
 
 The wait begins after W is released. A 30-second wait means a 2-second walk
 cycle followed by 30 seconds without movement. The wait is saved between launches

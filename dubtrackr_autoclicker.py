@@ -482,7 +482,7 @@ class App(ctk.CTk):
     def _build_walk(self):
         f = ctk.CTkFrame(self, corner_radius=14)
         f.pack(fill="x", padx=16, pady=(0, 6))
-        ctk.CTkLabel(f, text="Walk back and forward", font=("Segoe UI", 14, "bold")).pack(
+        ctk.CTkLabel(f, text="DubTrackr AutoWalkr", font=("Segoe UI", 14, "bold")).pack(
             anchor="w", padx=16, pady=(12, 0))
         ctk.CTkLabel(f, text="Hold S for 1 second, then W for 1 second.",
                      font=("Segoe UI", 12)).pack(anchor="w", padx=16)

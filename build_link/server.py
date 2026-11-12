@@ -25,6 +25,7 @@ from .engine import STOP_REASONS, Stopped, StepError
 
 PROTOCOL = 1
 MAX_LINE = 64 * 1024
+LOG_MAX = 5 * 1024 * 1024
 
 
 def link_file_path():
@@ -47,6 +48,13 @@ class BuildLinkServer(threading.Thread):
         self._alive = True
         self._client = None
         self._send_lock = threading.Lock()
+        # The engine's own log of the newest session (build-link.log beside the link file): every
+        # step with its actions, the answer, how long it took and where input would go before and
+        # after, and every stop. Started fresh for each connection, at most LOG_MAX bytes.
+        self.log_file = os.path.join(os.path.dirname(self.link_file), "build-link.log") if self.link_file else None
+        self._log = None
+        self._log_lock = threading.Lock()
+        self._t0 = time.monotonic()
         engine._on_event = self._event
         if self.link_file:
             try:
@@ -58,7 +66,38 @@ class BuildLinkServer(threading.Thread):
                 pass
 
     def _event(self, event):
+        self.trace({"type": "stopped", **event})
         self._write(self._client, event)
+
+    def trace(self, entry):
+        with self._log_lock:
+            if self._log is None:
+                return
+            try:
+                if self._log.tell() < LOG_MAX:
+                    self._log.write(json.dumps({"t": round((time.monotonic() - self._t0) * 1000), **entry}) + chr(10))
+                    self._log.flush()
+            except (OSError, ValueError):
+                pass
+
+    def _open_log(self):
+        with self._log_lock:
+            if self._log is not None or not self.log_file:
+                return
+            try:
+                self._log = open(self.log_file, "w", encoding="utf-8")
+                self._t0 = time.monotonic()
+            except OSError:
+                self._log = None
+
+    def _close_log(self):
+        with self._log_lock:
+            if self._log is not None:
+                try:
+                    self._log.close()
+                except OSError:
+                    pass
+                self._log = None
 
     def _write(self, conn, msg):
         if conn is None:
@@ -113,6 +152,8 @@ class BuildLinkServer(threading.Thread):
                         if msg.get("hello") == PROTOCOL and secrets.compare_digest(str(msg.get("token", "")), self.token):
                             authed = True
                             self._client = conn
+                            self._open_log()
+                            self.trace({"type": "connected", "version": self.version})
                             worker.start()
                             self._write(conn, {"hello": PROTOCOL, "engine": "autoclickr-build-link", "version": self.version})
                             continue
@@ -123,6 +164,8 @@ class BuildLinkServer(threading.Thread):
             if self._client is conn:
                 self._client = None
                 self.engine.stop("disconnect")
+                self.trace({"type": "disconnected"})
+                self._close_log()
             steps.put(None)
             try:
                 conn.close()
@@ -136,6 +179,7 @@ class BuildLinkServer(threading.Thread):
             self.engine.beat()
         elif op == "arm":
             why = self.engine.arm(msg.get("rate", "normal"))
+            self.trace({"type": "arm", "ok": why is None, "reason": why})
             self._write(conn, {"id": mid, "ok": why is None} if why is None else
                         {"id": mid, "ok": False, "reason": why, "text": STOP_REASONS.get(why, why)})
         elif op == "stop":
@@ -161,16 +205,27 @@ class BuildLinkServer(threading.Thread):
                 return
             mid, actions = item
             started = time.monotonic()
+            before = self._input_target()
             try:
                 if not self.engine.armed:
                     raise Stopped(self.engine.reason or "brain")
                 self.engine.run(actions)
-                self._write(conn, {"id": mid, "ok": True, "ms": round((time.monotonic() - started) * 1000)})
+                ms = round((time.monotonic() - started) * 1000)
+                self._write(conn, {"id": mid, "ok": True, "ms": ms})
+                self.trace({"type": "step", "id": mid, "do": actions, "ok": True, "ms": ms, "before": before, "after": self._input_target()})
             except Stopped as s:
                 self._write(conn, {"id": mid, "ok": False, "reason": s.reason, "text": STOP_REASONS.get(s.reason, s.reason)})
+                self.trace({"type": "step", "id": mid, "do": actions, "ok": False, "reason": s.reason, "before": before, "after": self._input_target()})
             except StepError as e:
                 self.engine.stop("brain")
                 self._write(conn, {"id": mid, "ok": False, "reason": "step", "text": str(e)})
+                self.trace({"type": "step", "id": mid, "do": actions, "ok": False, "reason": "step", "text": str(e)})
+
+    def _input_target(self):
+        try:
+            return self.engine._b.target_state()
+        except Exception:
+            return "focus"
 
     def shutdown(self):
         self._alive = False
@@ -184,6 +239,7 @@ class BuildLinkServer(threading.Thread):
                 self._client.shutdown(socket.SHUT_RDWR)
             except OSError:
                 pass
+        self._close_log()
         if self.link_file:
             try:
                 os.remove(self.link_file)

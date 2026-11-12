@@ -230,6 +230,15 @@ class ServerTests(unittest.TestCase):
         c.close()
         self.assertTrue(wait_until(lambda: not self.e.armed))
         self.assertEqual(self.b.down, set())
+        # The session log: connected, arms, each step with its answer, the stop, disconnected.
+        self.assertTrue(wait_until(lambda: os.path.exists(self.s.log_file) and "disconnected" in open(self.s.log_file, encoding="utf-8").read()))
+        with open(self.s.log_file, encoding="utf-8") as fh:
+            rows = [json.loads(line) for line in fh]
+        kinds = [r["type"] for r in rows]
+        for k in ("connected", "arm", "step", "stopped", "disconnected"):
+            self.assertIn(k, kinds)
+        refused = [r for r in rows if r["type"] == "step" and not r["ok"]]
+        self.assertEqual(refused[0]["reason"], "step")
 
     def test_stop_event_is_pushed(self):
         c, f = self.connect()

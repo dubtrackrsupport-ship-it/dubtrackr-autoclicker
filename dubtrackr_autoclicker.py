@@ -33,6 +33,7 @@ from pynput.keyboard import (Controller as KeyboardController, Key,
 from version import VERSION
 from walk_engine import WalkEngine
 from build_link import start as build_link_start
+from build_link.winput import foreground_exe, starts_minimized
 
 APP_NAME = "DubTrackr AutoClickr"
 WEBSITE = "https://www.dubtrackr.win"
@@ -235,6 +236,10 @@ class RepeatEngine(threading.Thread):
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
+        # Opened while a game is in front (DubTrackr's Build it for me, or a hotkey launch): minimized
+        # and without taking the focus, so the game keeps it. Set before the window first shows.
+        if starts_minimized(foreground_exe()):
+            self.iconify()
         timer_begin()               # 1ms system timer for smooth, precise clicking
         self.s = load_settings()
         ctk.set_appearance_mode(self.s["appearance"])

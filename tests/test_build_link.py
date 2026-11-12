@@ -8,7 +8,7 @@ import unittest
 
 from build_link.engine import BuildEngine, Stopped, StepError, validate_actions, MAX_HOLD_S
 from build_link.server import BuildLinkServer
-from build_link.winput import real_key_plan, is_modifier
+from build_link.winput import real_key_plan, is_modifier, starts_minimized, foreground_exe
 
 
 class FakeBackend:
@@ -343,6 +343,15 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(msg, {"event": "stopped", "reason": "screen", "text": msg["text"]})
         c.close()
 
+
+
+class StartMinimizedTest(unittest.TestCase):
+    def test_a_game_in_front_starts_minimized(self):
+        self.assertTrue(starts_minimized(r"C:\Program Files\WindowsApps\Microsoft.MinecraftUWP\Minecraft.Windows.exe"))
+        self.assertTrue(starts_minimized(r"D:\Epic\Fortnite\FortniteClient-Win64-Shipping.exe"))
+        self.assertFalse(starts_minimized(r"C:\Windows\explorer.exe"))
+        self.assertFalse(starts_minimized(""))
+        self.assertIsInstance(foreground_exe(), str)
 
 if __name__ == "__main__":
     unittest.main()

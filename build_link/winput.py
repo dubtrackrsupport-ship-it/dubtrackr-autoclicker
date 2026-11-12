@@ -36,6 +36,42 @@ WM_KEYUP, WM_SYSKEYUP = 0x0101, 0x0105
 MODIFIER_VK = frozenset([0x10, 0x11, 0x12, 0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0x5B, 0x5C])
 
 
+# Games AutoClickr is used in. Opened while one of them is in front, AutoClickr starts minimized and
+# does not take the focus (Minecraft paused behind its window, 2026-11-12).
+GAMES = TARGETS + ("fortniteclient-win64-shipping.exe", "javaw.exe")
+
+
+def starts_minimized(foreground_exe):
+    """Whether AutoClickr should open minimized: a game is the window in front."""
+    return bool(foreground_exe) and os.path.basename(foreground_exe).lower() in GAMES
+
+
+def foreground_exe():
+    """The program file of the window in front ('' when it cannot be told). Reads only."""
+    if sys.platform != "win32":
+        return ""
+    try:
+        u, k = ctypes.windll.user32, ctypes.windll.kernel32
+        u.GetForegroundWindow.restype = wintypes.HWND
+        hwnd = u.GetForegroundWindow()
+        if not hwnd:
+            return ""
+        pid = wintypes.DWORD()
+        u.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        k.OpenProcess.restype = wintypes.HANDLE
+        h = k.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid.value)
+        if not h:
+            return ""
+        try:
+            buf = ctypes.create_unicode_buffer(1024)
+            size = wintypes.DWORD(1024)
+            return buf.value if k.QueryFullProcessImageNameW(h, 0, buf, ctypes.byref(size)) else ""
+        finally:
+            k.CloseHandle(h)
+    except (OSError, AttributeError):
+        return ""
+
+
 def is_modifier(name):
     """Whether a key name ("shift" or "vk:<n>") is one Windows combines with other keys."""
     if name == "shift":

@@ -73,6 +73,12 @@ class WindowsBackend:
         self._k.OpenProcess.restype = wintypes.HANDLE
         self._k.QueryFullProcessImageNameW.argtypes = (wintypes.HANDLE, wintypes.DWORD, wintypes.LPWSTR, ctypes.POINTER(wintypes.DWORD))
         self._targets = tuple(t.lower() for t in targets)
+        # A 1 ms timer while this backend lives: the engine's short pauses between mouse sends
+        # otherwise wake 15.6 ms late (the moves are paced by the clock either way).
+        try:
+            ctypes.WinDLL("winmm").timeBeginPeriod(1)
+        except OSError:
+            pass
         self._listeners = []
         self._pid_cache = (None, None)
 

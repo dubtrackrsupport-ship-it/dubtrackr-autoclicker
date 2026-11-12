@@ -131,6 +131,54 @@ class EngineTests(unittest.TestCase):
         self.e.stop()
         self.assertEqual(self.b.down, set())
 
+    def test_turn_speed_is_what_the_brain_asks_paced_by_the_clock_and_eased(self):
+        # 4,000 counts at 5,000 a second: 85% at full speed, the last 15% at a third (about 1.04 s),
+        # never more than 320 counts in one send, and the whole move arrives exactly.
+        self.e.arm()
+        alive = self.keep_beating()
+        t0 = time.monotonic()
+        self.e.run([{"k": "mouse", "dx": 4000, "dy": -400, "cps": 5000}])
+        took = time.monotonic() - t0
+        alive.set()
+        moved = [e for e in self.b.events if e[0] == "mv"]
+        self.assertEqual(sum(e[1] for e in moved), 4000)
+        self.assertEqual(sum(e[2] for e in moved), -400)
+        self.assertTrue(all(abs(e[1]) <= 320 and abs(e[2]) <= 320 for e in moved))
+        self.assertGreater(took, 0.85)
+        self.assertLess(took, 1.4, "paced by the clock: not slowed by late wake-ups")
+        # The eased end: the last sends are smaller than the middle ones.
+        mid = max(abs(e[1]) for e in moved[len(moved) // 3: 2 * len(moved) // 3])
+        self.assertLess(abs(moved[-2][1]), mid)
+        with self.assertRaises(StepError):
+            validate_actions([{"k": "mouse", "dx": 10, "cps": 9000}])
+        with self.assertRaises(StepError):
+            validate_actions([{"k": "mouse", "dx": 10, "cps": 50}])
+
+    def test_walk_and_turn_together_inside_the_hold_and_every_stop_still_works(self):
+        self.e.arm()
+        alive = self.keep_beating()
+        t0 = time.monotonic()
+        self.e.run([{"k": "hold", "key": "w", "ms": 600, "mouse": {"dx": 300, "dy": 0, "cps": 4000}}])
+        took = time.monotonic() - t0
+        kinds = [e[0] for e in self.b.events]
+        self.assertEqual(kinds[0], "kd")
+        self.assertEqual(kinds[-1], "ku")
+        self.assertIn("mv", kinds[1:-1], "the turn happens while the key is down")
+        self.assertEqual(sum(e[1] for e in self.b.events if e[0] == "mv"), 300)
+        self.assertGreater(took, 0.55)
+        self.assertLess(took, 0.85)
+        # A real mouse move from the player stops it mid-turn and lets go of the key.
+        self.b.events.clear()
+        stopper = threading.Timer(0.15, self.b.real)
+        stopper.start()
+        with self.assertRaises(Stopped):
+            self.e.run([{"k": "hold", "key": "w", "ms": 1500, "mouse": {"dx": 4000, "dy": 0, "cps": 1000}}])
+        alive.set()
+        self.assertEqual(self.b.down, set())
+        self.assertEqual(self.e.reason, "input")
+        with self.assertRaises(StepError):
+            validate_actions([{"k": "tap", "key": "w", "mouse": {"dx": 5}}])
+
     def test_validation(self):
         for bad in ([], [{"k": "down", "key": "w"}], [{"k": "hold", "key": "q", "ms": 10}],
                     [{"k": "hold", "key": "w", "ms": 5000}], [{"k": "mouse", "dx": 99999, "dy": 0}],

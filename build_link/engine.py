@@ -50,6 +50,14 @@ RATES = {
     "normal": {"click_gap": 0.18, "mouse_cps": 2400, "slice": 0.008},
     "fast": {"click_gap": 0.08, "mouse_cps": 6000, "slice": 0.004},
 }
+# A mouse action may name its own speed ("cps", counts a second): the brain works it out from the
+# game's own turn per count, so a turn has the same speed in degrees whatever the player's
+# sensitivity. Bounded, and each send at most MAX_SEND counts (the game turned in proportion from
+# 5 to 320 counts a move, measured 2026-11-12).
+MIN_CPS, MAX_CPS = 200, 8000
+MAX_SEND = 320
+# The last part of a move goes at a third of the speed, so the aim settles exactly where asked.
+EASE_PART, EASE_SLOW = 0.15, 3.0
 
 STOP_REASONS = {
     "hotkey": "You pressed the stop key.",
@@ -94,12 +102,21 @@ def validate_actions(actions, hold_key="shift"):
             also = a.get("with")
             if also is not None and (k != "hold" or not key_ok(also) or also in (hold_key, a["key"])):
                 raise StepError("with is one more key for a hold")
-            out.append({"k": k, "key": a["key"], "ms": ms if k == "hold" else (40 if k == "tap" else 0), "with": also})
+            # A hold may turn the camera at the same time ("mouse": {dx, dy, cps}), within the hold.
+            turn = a.get("mouse")
+            if turn is not None:
+                if k != "hold" or not isinstance(turn, dict):
+                    raise StepError("a turn goes with a hold")
+                tdx, tdy = turn.get("dx", 0), turn.get("dy", 0)
+                if not all(isinstance(v, int) and not isinstance(v, bool) and abs(v) <= MAX_MOUSE for v in (tdx, tdy)):
+                    raise StepError("mouse move out of range")
+                turn = {"dx": tdx, "dy": tdy, "cps": _cps(turn.get("cps"))}
+            out.append({"k": k, "key": a["key"], "ms": ms if k == "hold" else (40 if k == "tap" else 0), "with": also, "mouse": turn})
         elif k == "mouse":
             dx, dy = a.get("dx", 0), a.get("dy", 0)
             if not all(isinstance(v, int) and not isinstance(v, bool) and abs(v) <= MAX_MOUSE for v in (dx, dy)):
                 raise StepError("mouse move out of range")
-            out.append({"k": "mouse", "dx": dx, "dy": dy})
+            out.append({"k": "mouse", "dx": dx, "dy": dy, "cps": _cps(a.get("cps"))})
         elif k == "click":
             if a.get("button") not in BUTTONS:
                 raise StepError("unknown button")
@@ -109,6 +126,14 @@ def validate_actions(actions, hold_key="shift"):
         else:
             raise StepError("unknown action")
     return out
+
+
+def _cps(v):
+    if v is None:
+        return None
+    if not isinstance(v, (int, float)) or isinstance(v, bool) or v != v or not MIN_CPS <= v <= MAX_CPS:
+        raise StepError("mouse speed out of range")
+    return float(v)
 
 
 class Stopped(Exception):
@@ -234,12 +259,21 @@ class BuildEngine:
                 try:
                     for key in keys:
                         self._press_key(key)
-                    self._sleep(min(a["ms"] / 1000.0, MAX_HOLD_S))
+                    hold_s = min(a["ms"] / 1000.0, MAX_HOLD_S)
+                    if a.get("mouse"):
+                        # Walk and turn together: the turn runs inside the hold (every send and
+                        # every pause still checks focus, screens and the stop), then the rest of it.
+                        start = self._clock()
+                        m = a["mouse"]
+                        self._mouse(m["dx"], m["dy"], m["cps"], until=start + hold_s)
+                        self._sleep(hold_s - (self._clock() - start))
+                    else:
+                        self._sleep(hold_s)
                 finally:
                     for key in reversed(keys):
                         self._release_key(key)
             elif k == "mouse":
-                self._mouse(a["dx"], a["dy"])
+                self._mouse(a["dx"], a["dy"], a.get("cps"))
             elif k == "click":
                 wait = self._rate["click_gap"] - (self._clock() - self._last_click)
                 if wait > 0:
@@ -316,21 +350,53 @@ class BuildEngine:
                 except Exception:
                     pass
 
-    def _mouse(self, dx, dy):
-        """A relative move, sliced so it turns at the session's rate."""
+    def _mouse(self, dx, dy, cps=None, until=None):
+        """A relative move at `cps` counts a second (else the session's rate), paced by the clock.
+
+        Each pause asks for `slice` seconds, but Windows wakes the thread late (about 15.6 ms instead
+        of 8: the moves ran at half speed, 2026-11-12). So each send moves as far as the time actually
+        gone by allows (at most MAX_SEND counts), and the last EASE_PART of the move goes at a third of
+        the speed. `until`: the move is done by then at the latest (the end of a hold).
+        """
         total = max(abs(dx), abs(dy))
         if not total:
             return
-        per_slice = max(1, int(self._rate["mouse_cps"] * self._rate["slice"]))
-        slices = max(1, -(-total // per_slice))
+        cps = float(cps or self._rate["mouse_cps"])
+        slice_s = self._rate["slice"]
+        fast_part = 1 - EASE_PART
+        t_fast = total * fast_part / cps
+        t_ease = total * EASE_PART * EASE_SLOW / cps
+        if until is not None:
+            room = until - self._clock()
+            if room <= 0:
+                t_fast = t_ease = 0.0
+            elif t_fast + t_ease > room:
+                k = room / (t_fast + t_ease)
+                t_fast, t_ease = t_fast * k, t_ease * k
+        start = self._clock()
         sent_x = sent_y = 0
-        for i in range(1, slices + 1):
-            tx = round(dx * i / slices)
-            ty = round(dy * i / slices)
-            self._send(self._b.mouse_move, tx - sent_x, ty - sent_y)
-            sent_x, sent_y = tx, ty
-            if i < slices:
-                self._sleep(self._rate["slice"])
+        while True:
+            el = self._clock() - start
+            if el >= t_fast + t_ease:
+                done = 1.0
+            elif el < t_fast:
+                done = el / t_fast * fast_part
+            else:
+                done = fast_part + (el - t_fast) / t_ease * EASE_PART
+            tx = round(dx * done)
+            ty = round(dy * done)
+            step_x, step_y = tx - sent_x, ty - sent_y
+            big = max(abs(step_x), abs(step_y))
+            if big > MAX_SEND:
+                f = MAX_SEND / big
+                step_x, step_y = int(step_x * f), int(step_y * f)
+            if step_x or step_y:
+                self._send(self._b.mouse_move, step_x, step_y)
+                sent_x += step_x
+                sent_y += step_y
+            if sent_x == dx and sent_y == dy:
+                return
+            self._sleep(slice_s)
 
     def _release_all(self):
         # Called with the lock held. Never raises.

@@ -21,7 +21,7 @@ SCAN = {
 BUTTON_FLAGS = {"left": (0x0002, 0x0004), "right": (0x0008, 0x0010)}
 
 INPUT_MOUSE, INPUT_KEYBOARD = 0, 1
-KEYEVENTF_KEYUP, KEYEVENTF_SCANCODE = 0x0002, 0x0008
+KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP, KEYEVENTF_SCANCODE = 0x0001, 0x0002, 0x0008
 MOUSEEVENTF_MOVE = 0x0001
 CURSOR_SHOWING = 0x00000001
 LLKHF_INJECTED = 0x10
@@ -81,9 +81,22 @@ class WindowsBackend:
         if self._u.SendInput(1, ctypes.byref(inp), ctypes.sizeof(INPUT)) != 1:
             raise OSError("SendInput failed (%d)" % ctypes.get_last_error())
 
+    def _scan(self, name):
+        """(scan code, extended) for a key name or "vk:<n>", through the active keyboard layout."""
+        if name in SCAN:
+            return SCAN[name], False
+        vk = int(name[3:])
+        # MAPVK_VK_TO_VSC_EX gives 0xE0xx for extended keys (right Ctrl, arrows).
+        sc = self._u.MapVirtualKeyW(vk, 4)
+        if not sc:
+            raise OSError("no scan code for virtual key %d" % vk)
+        return sc & 0xFF, bool(sc & 0xFF00)
+
     def _key(self, name, up):
+        sc, ext = self._scan(name)
         inp = INPUT(type=INPUT_KEYBOARD)
-        inp.u.ki = KEYBDINPUT(0, SCAN[name], KEYEVENTF_SCANCODE | (KEYEVENTF_KEYUP if up else 0), 0, 0)
+        flags = KEYEVENTF_SCANCODE | (KEYEVENTF_KEYUP if up else 0) | (KEYEVENTF_EXTENDEDKEY if ext else 0)
+        inp.u.ki = KEYBDINPUT(0, sc, flags, 0, 0)
         self._send(inp)
 
     def key_down(self, name):

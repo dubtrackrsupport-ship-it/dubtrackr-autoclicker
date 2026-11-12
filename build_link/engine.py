@@ -23,6 +23,20 @@ import threading
 import time
 
 KEYS = ("w", "a", "s", "d", "space", "shift", "1", "2", "3", "4", "5", "6", "7", "8", "9")
+# The player's own bindings come as "vk:<virtual-key code>" (read from the game's options.txt by
+# the DubTrackr app): letters, digits, space, tab, caps lock, shift, ctrl and their left and right
+# forms, the arrows and the numeric keypad digits. Nothing else (no Alt, Windows, Escape, function keys).
+ALLOWED_VK = frozenset(
+    list(range(0x41, 0x5B)) + list(range(0x30, 0x3A)) + list(range(0x60, 0x6A))
+    + [0x20, 0x09, 0x14, 0x10, 0x11, 0xA0, 0xA1, 0xA2, 0xA3, 0x25, 0x26, 0x27, 0x28])
+
+
+def key_ok(key):
+    if key in KEYS:
+        return True
+    if isinstance(key, str) and key.startswith("vk:") and key[3:].isdigit():
+        return int(key[3:]) in ALLOWED_VK
+    return False
 BUTTONS = ("left", "right")
 MAX_HOLD_S = 2.0          # longest a key or button is held in one go (sneak excepted)
 MAX_STEP_MS = 2000        # longest single hold or wait the brain may ask for
@@ -55,8 +69,12 @@ class StepError(ValueError):
     """A step the engine refuses (bad shape or out of bounds)."""
 
 
-def validate_actions(actions):
-    """Checks a step's actions; returns them as tidy dicts or raises StepError."""
+def validate_actions(actions, hold_key="shift"):
+    """Checks a step's actions; returns them as tidy dicts or raises StepError.
+
+    hold_key is the one key that may stay down between actions: the player's sneak key, as the
+    brain named it when it armed the session.
+    """
     if not isinstance(actions, list) or not actions or len(actions) > MAX_ACTIONS:
         raise StepError("a step needs 1 to %d actions" % MAX_ACTIONS)
     out = []
@@ -68,13 +86,13 @@ def validate_actions(actions):
         if not isinstance(ms, (int, float)) or ms != ms or not 0 <= ms <= MAX_STEP_MS:
             raise StepError("ms out of range")
         if k in ("down", "up", "hold", "tap"):
-            if a.get("key") not in KEYS:
+            if not key_ok(a.get("key")):
                 raise StepError("unknown key")
-            if k == "down" and a["key"] != "shift":
+            if k == "down" and a["key"] != hold_key:
                 # Only sneak stays held between actions; movement is always a bounded hold.
-                raise StepError("only shift can be held down between actions")
+                raise StepError("only the sneak key can be held down between actions")
             also = a.get("with")
-            if also is not None and (k != "hold" or also not in KEYS or also in ("shift", a["key"])):
+            if also is not None and (k != "hold" or not key_ok(also) or also in (hold_key, a["key"])):
                 raise StepError("with is one more key for a hold")
             out.append({"k": k, "key": a["key"], "ms": ms if k == "hold" else (40 if k == "tap" else 0), "with": also})
         elif k == "mouse":
@@ -124,6 +142,7 @@ class BuildEngine:
         self._last_click = -1e9
         self._rate = RATES["normal"]
         self._reason = None
+        self._hold_key = "shift"
         self._alive = True
         self._monitor = threading.Thread(target=self._watch, daemon=True, name="build-link-monitor")
         self._monitor.start()
@@ -145,8 +164,13 @@ class BuildEngine:
         with self._lock:
             return sorted(self._held_keys) + ["mouse:" + b for b in sorted(self._held_buttons)]
 
-    def arm(self, rate="normal"):
-        """Starts a build session. Returns None, or the reason it cannot start."""
+    def arm(self, rate="normal", hold_key="shift"):
+        """Starts a build session. Returns None, or the reason it cannot start.
+
+        hold_key: the player's sneak key, the only key allowed to stay held between actions.
+        """
+        if not key_ok(hold_key):
+            return "step"
         with self._lock:
             if not self._alive:
                 return "shutdown"
@@ -156,6 +180,7 @@ class BuildEngine:
             if state != "ok":
                 return state
             self._rate = RATES.get(rate, RATES["normal"])
+            self._hold_key = hold_key
             self._release_all()
             self._armed = True
             self._reason = None
@@ -196,7 +221,7 @@ class BuildEngine:
     # ----- running a step -----
     def run(self, actions):
         """Runs one step's actions in order. Raises Stopped(reason) if the build stops meanwhile."""
-        actions = validate_actions(actions)
+        actions = validate_actions(actions, self._hold_key)
         for a in actions:
             k = a["k"]
             if k == "down":
@@ -331,7 +356,7 @@ class BuildEngine:
                 armed = self._armed
                 beat_age = self._clock() - self._last_beat
                 now = self._clock()
-                overheld = [n for n, t in self._held_keys.items() if n != "shift" and now - t > MAX_HOLD_S + 0.2]
+                overheld = [n for n, t in self._held_keys.items() if n != self._hold_key and now - t > MAX_HOLD_S + 0.2]
                 overheld += ["mouse:" + n for n, t in self._held_buttons.items() if now - t > MAX_HOLD_S + 0.2]
             if armed:
                 reason = None

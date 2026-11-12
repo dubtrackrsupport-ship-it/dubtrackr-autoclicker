@@ -116,6 +116,21 @@ class EngineTests(unittest.TestCase):
         with self.assertRaises(StepError):
             validate_actions([{"k": "hold", "key": "w", "with": "shift", "ms": 30}])
 
+    def test_player_bindings_and_the_sneak_key(self):
+        # Ctrl as sneak (this PC's Minecraft binds sneak to Ctrl and Shift to sprint).
+        self.assertIsNone(self.e.arm("normal", "vk:17"))
+        self.e.run([{"k": "down", "key": "vk:17"}, {"k": "hold", "key": "vk:87", "ms": 20}])
+        self.assertEqual(self.b.down, {"vk:17"})
+        with self.assertRaises(StepError):
+            validate_actions([{"k": "down", "key": "shift"}], "vk:17")   # only the sneak key stays down
+        with self.assertRaises(StepError):
+            validate_actions([{"k": "tap", "key": "vk:18"}])           # Alt is never sent
+        with self.assertRaises(StepError):
+            validate_actions([{"k": "tap", "key": "vk:27"}])           # nor Escape
+        self.assertEqual(self.e.arm("normal", "vk:999"), "step")
+        self.e.stop()
+        self.assertEqual(self.b.down, set())
+
     def test_validation(self):
         for bad in ([], [{"k": "down", "key": "w"}], [{"k": "hold", "key": "q", "ms": 10}],
                     [{"k": "hold", "key": "w", "ms": 5000}], [{"k": "mouse", "dx": 99999, "dy": 0}],

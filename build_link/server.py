@@ -5,7 +5,7 @@ AutoClickr starts; a client must send the token first. Only one client at a time
 
 Client to engine:
   {"hello": 1, "token": "..."}                       -> {"hello": 1, "engine": "...", "version": "..."}
-  {"id": 1, "op": "arm", "rate": "normal" | "fast"}  -> {"id": 1, "ok": true} | {"id": 1, "ok": false, "reason", "text"}
+  {"id": 1, "op": "arm", "rate": "normal" | "fast", "hold": "vk:17"}   (hold: the sneak key)  -> {"id": 1, "ok": true} | {"id": 1, "ok": false, "reason", "text"}
   {"op": "beat"}                                     (no answer; at least every 500 ms while armed)
   {"id": 2, "op": "step", "do": [actions]}           -> {"id": 2, "ok": true, "ms": 312} | ok false with reason
   {"id": 3, "op": "stop"}                            -> {"id": 3, "ok": true}
@@ -178,7 +178,7 @@ class BuildLinkServer(threading.Thread):
         if op == "beat":
             self.engine.beat()
         elif op == "arm":
-            why = self.engine.arm(msg.get("rate", "normal"))
+            why = self.engine.arm(msg.get("rate", "normal"), msg.get("hold", "shift"))
             self.trace({"type": "arm", "ok": why is None, "reason": why})
             self._write(conn, {"id": mid, "ok": why is None} if why is None else
                         {"id": mid, "ok": False, "reason": why, "text": STOP_REASONS.get(why, why)})

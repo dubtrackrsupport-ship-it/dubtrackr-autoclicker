@@ -17,7 +17,8 @@ class AppWalkTests(unittest.TestCase):
         cls.keyboard = patch.object(module, "kbd", Mock())
         cls.mouse = patch.object(module, "mouse", Mock())
         cls.listener = patch.object(module, "KeyListener", Mock())
-        for item in (cls.settings_dir, cls.settings_path, cls.keyboard, cls.mouse, cls.listener):
+        cls.build_link = patch.object(module, "build_link_start", Mock(return_value=(None, None)))
+        for item in (cls.settings_dir, cls.settings_path, cls.keyboard, cls.mouse, cls.listener, cls.build_link):
             item.start()
         cls.app = module.App()
         cls.app.title("DubTrackr AutoClickr - Walk QA (no input)")
@@ -26,7 +27,7 @@ class AppWalkTests(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cls.app.on_close()
-        for item in (cls.listener, cls.mouse, cls.keyboard, cls.settings_path, cls.settings_dir):
+        for item in (cls.build_link, cls.listener, cls.mouse, cls.keyboard, cls.settings_path, cls.settings_dir):
             item.stop()
         cls.temp.cleanup()
 

@@ -92,6 +92,19 @@ The v1.0.1 release build uses Python 3.14.6 (recorded in `.python-version`).
 - **Use responsibly.** Automating input can violate the terms of service of some
   games and online services. You are responsible for how you use this tool.
 
+## Build it for me (Minecraft, prototype)
+
+The DubTrackr app's "Build it for me" uses AutoClickr to place a Minecraft build block by block.
+The app plans the build and reads the game; AutoClickr only sends the keys and mouse moves, from
+`build_link/`. It listens on this PC only (127.0.0.1), with a token written to
+`%APPDATA%\DubtrackrAutoClicker\build-link.json`.
+
+It sends input only while Minecraft is the window in front with the mouse captured. The build
+stops and every key is released when you press F9 or touch the keyboard or mouse, when another
+window comes to the front, when any game screen opens (chat, pause menu, inventory), when the
+DubTrackr app goes quiet for half a second, or when another AutoClickr automation starts.
+Servers and Realms can detect this kind of input and may ban for it.
+
 ## License
 
 MIT — free to use, modify, and share.

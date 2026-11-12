@@ -32,6 +32,7 @@ from pynput.keyboard import (Controller as KeyboardController, Key,
                              Listener as KeyListener)
 from version import VERSION
 from walk_engine import WalkEngine
+from build_link import start as build_link_start
 
 APP_NAME = "DubTrackr AutoClickr"
 WEBSITE = "https://www.dubtrackr.win"
@@ -252,6 +253,9 @@ class App(ctk.CTk):
         self.mouse_engine.start()
         self.key_engine.start()
         self.walk_engine.start()
+        # DubTrackr's "Build it for me" (Minecraft) sends its steps here; it acts only while
+        # Minecraft is in front and none of the engines above is running (build_link/engine.py).
+        self.build_link, self.build_link_error = build_link_start(VERSION, busy=self._automation_busy)
 
         self.mouse_hotkey = key_from_name(self.s["m_hotkey"])
         self.key_hotkey = key_from_name(self.s["k_hotkey"])
@@ -947,8 +951,15 @@ class App(ctk.CTk):
         self.k_state_lbl.configure(text="EVERY\nLIVE" if on else "EVERY\nIDLE",
                                    text_color=COL_GO if on else ("#6b7a92", "#9dadc2"))
 
+    def _automation_busy(self):
+        return (self.mouse_engine.running.is_set() or self.key_engine.running.is_set()
+                or self.walk_engine.active or self._held_key is not None)
+
     # ---------- shutdown ----------
     def on_close(self):
+        if self.build_link is not None:
+            self.build_link.shutdown()
+            self.build_link.engine.shutdown()
         self.walk_engine.shutdown()
         self.walk_engine.join(timeout=2)
         self.mouse_engine.shutdown()

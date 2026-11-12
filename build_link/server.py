@@ -10,6 +10,7 @@ Client to engine:
   {"id": 2, "op": "step", "do": [actions]}           -> {"id": 2, "ok": true, "ms": 312} | ok false with reason
   {"id": 3, "op": "stop"}                            -> {"id": 3, "ok": true}
   {"id": 4, "op": "status"}                          -> {"id": 4, "ok": true, "armed", "held", "reason", "target"}
+  {"id": 5, "op": "quit"}                            -> {"id": 5, "ok": true}  (link-only mode ends; a windowed AutoClickr ignores it)
 Engine to client, any time: {"event": "stopped", "reason", "text"}
 """
 
@@ -47,6 +48,7 @@ class BuildLinkServer(threading.Thread):
         self.port = self._sock.getsockname()[1]
         self._alive = True
         self._client = None
+        self.quit_requested = False   # an app asked a link-only AutoClickr to end ({"op": "quit"})
         self._send_lock = threading.Lock()
         # The engine's own log of the newest session (build-link.log beside the link file): every
         # step with its actions, the answer, how long it took and where input would go before and
@@ -185,6 +187,10 @@ class BuildLinkServer(threading.Thread):
         elif op == "stop":
             self.engine.stop("brain")
             self._write(conn, {"id": mid, "ok": True})
+        elif op == "quit":
+            self.engine.stop("brain")
+            self.quit_requested = True
+            self._write(conn, {"id": mid, "ok": True})
         elif op == "status":
             try:
                 target = self.engine._b.target_state()
@@ -220,6 +226,10 @@ class BuildLinkServer(threading.Thread):
                 self.engine.stop("brain")
                 self._write(conn, {"id": mid, "ok": False, "reason": "step", "text": str(e)})
                 self.trace({"type": "step", "id": mid, "do": actions, "ok": False, "reason": "step", "text": str(e)})
+
+    @property
+    def connected(self):
+        return self._client is not None
 
     def _input_target(self):
         try:

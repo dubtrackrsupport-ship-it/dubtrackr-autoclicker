@@ -345,6 +345,69 @@ class ServerTests(unittest.TestCase):
 
 
 
+
+class LinkOnlyTests(unittest.TestCase):
+    """--build-link-only: no window, ends when asked, when the app is gone, or when idle."""
+
+    def server(self):
+        from build_link.server import BuildLinkServer
+        d = tempfile.mkdtemp()
+        e = BuildEngine(FakeBackend())
+        return BuildLinkServer(e, version="test", link_file=os.path.join(d, "build-link.json")), e
+
+    def test_quit_ends_and_releases(self):
+        from build_link.headless import run
+        s, e = self.server()
+        out = {}
+        t = threading.Thread(target=lambda: out.setdefault("why", run(s, idle_s=60)))
+        t.start()
+        with open(s.link_file, encoding="utf-8") as fh:
+            info = json.load(fh)
+        c = socket.create_connection(("127.0.0.1", info["port"]), timeout=3)
+        f = c.makefile("r", encoding="utf-8")
+        c.sendall((json.dumps({"hello": 1, "token": info["token"]}) + "\n").encode())
+        f.readline()
+        c.sendall((json.dumps({"id": 1, "op": "arm"}) + "\n").encode())
+        f.readline()
+        c.sendall((json.dumps({"id": 2, "op": "quit"}) + "\n").encode())
+        reply = json.loads(f.readline())
+        while reply.get("id") != 2:  # the "stopped" event comes first (it was armed)
+            reply = json.loads(f.readline())
+        self.assertTrue(reply["ok"])
+        t.join(5)
+        self.assertEqual(out.get("why"), "asked")
+        self.assertFalse(e.armed)
+        self.assertFalse(os.path.exists(s.link_file), "the link file is removed")
+        f.close(); c.close()
+
+    def test_idle_and_parent_gone(self):
+        from build_link.headless import run
+        s, _ = self.server()
+        clock = [0.0]
+        self.assertEqual(run(s, idle_s=10, clock=lambda: clock[0], sleep=lambda _: clock.__setitem__(0, clock[0] + 1)), "idle")
+        s2, _ = self.server()
+        self.assertEqual(run(s2, parent_pid=4242, alive=lambda pid: False, sleep=lambda _: None), "parent-gone")
+
+    def test_no_link_offered_without_a_live_process(self):
+        from build_link.headless import link_offered
+        d = tempfile.mkdtemp()
+        p = os.path.join(d, "build-link.json")
+        self.assertFalse(link_offered(p))
+        with open(p, "w", encoding="utf-8") as fh:
+            json.dump({"protocol": 1, "port": 1, "token": "x", "pid": 999999}, fh)
+        self.assertFalse(link_offered(p))
+
+    def test_the_program_never_loads_tkinter(self):
+        import subprocess
+        import sys as _sys
+        here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        code = ("import sys, runpy; sys.argv=['x','--build-link-only','--parent-pid','999999']\n"
+                "try:\n runpy.run_path(r'%s', run_name='__main__')\nexcept SystemExit:\n pass\n"
+                "print('TK' if 'tkinter' in sys.modules else 'NO-TK')") % os.path.join(here, "dubtrackr_autoclicker.py")
+        env = dict(os.environ, APPDATA=tempfile.mkdtemp())
+        out = subprocess.run([_sys.executable, "-c", code], cwd=here, env=env, capture_output=True, text=True, timeout=30)
+        self.assertIn("NO-TK", out.stdout, out.stdout + out.stderr)
+
 class StartMinimizedTest(unittest.TestCase):
     def test_a_game_in_front_starts_minimized(self):
         self.assertTrue(starts_minimized(r"C:\Program Files\WindowsApps\Microsoft.MinecraftUWP\Minecraft.Windows.exe"))

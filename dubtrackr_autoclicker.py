@@ -16,6 +16,11 @@ Free & open source — part of the Dubtrackr Network · https://www.dubtrackr.wi
 Requires:  pip install customtkinter pynput
 """
 
+import sys as _sys
+if __name__ == "__main__" and "--build-link-only" in _sys.argv:
+    # The build link alone, with no window (the DubTrackr app starts it this way): tkinter is never loaded.
+    from build_link.headless import main as _link_only
+    raise SystemExit(_link_only(_sys.argv[1:]))
 import colorsys
 import json
 import math

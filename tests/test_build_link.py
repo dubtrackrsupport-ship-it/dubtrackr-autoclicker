@@ -108,6 +108,14 @@ class EngineTests(unittest.TestCase):
         self.e.stop()
         self.assertEqual(self.b.down, set())
 
+    def test_hold_with_a_second_key(self):
+        self.e.arm()
+        self.e.run([{"k": "hold", "key": "w", "with": "space", "ms": 30}])
+        self.assertEqual([e for e in self.b.events if e[0] in ("kd", "ku")],
+                         [("kd", "w"), ("kd", "space"), ("ku", "space"), ("ku", "w")])
+        with self.assertRaises(StepError):
+            validate_actions([{"k": "hold", "key": "w", "with": "shift", "ms": 30}])
+
     def test_validation(self):
         for bad in ([], [{"k": "down", "key": "w"}], [{"k": "hold", "key": "q", "ms": 10}],
                     [{"k": "hold", "key": "w", "ms": 5000}], [{"k": "mouse", "dx": 99999, "dy": 0}],

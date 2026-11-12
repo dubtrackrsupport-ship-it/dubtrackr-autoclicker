@@ -73,7 +73,10 @@ def validate_actions(actions):
             if k == "down" and a["key"] != "shift":
                 # Only sneak stays held between actions; movement is always a bounded hold.
                 raise StepError("only shift can be held down between actions")
-            out.append({"k": k, "key": a["key"], "ms": ms if k == "hold" else (40 if k == "tap" else 0)})
+            also = a.get("with")
+            if also is not None and (k != "hold" or also not in KEYS or also in ("shift", a["key"])):
+                raise StepError("with is one more key for a hold")
+            out.append({"k": k, "key": a["key"], "ms": ms if k == "hold" else (40 if k == "tap" else 0), "with": also})
         elif k == "mouse":
             dx, dy = a.get("dx", 0), a.get("dy", 0)
             if not all(isinstance(v, int) and not isinstance(v, bool) and abs(v) <= MAX_MOUSE for v in (dx, dy)):
@@ -201,11 +204,15 @@ class BuildEngine:
             elif k == "up":
                 self._release_key(a["key"])
             elif k in ("hold", "tap"):
-                self._press_key(a["key"])
+                # A hold may press one more key with it (walk and jump to step up a block).
+                keys = [a["key"]] + ([a["with"]] if a.get("with") else [])
                 try:
+                    for key in keys:
+                        self._press_key(key)
                     self._sleep(min(a["ms"] / 1000.0, MAX_HOLD_S))
                 finally:
-                    self._release_key(a["key"])
+                    for key in reversed(keys):
+                        self._release_key(key)
             elif k == "mouse":
                 self._mouse(a["dx"], a["dy"])
             elif k == "click":

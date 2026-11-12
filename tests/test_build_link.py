@@ -8,6 +8,7 @@ import unittest
 
 from build_link.engine import BuildEngine, Stopped, StepError, validate_actions, MAX_HOLD_S
 from build_link.server import BuildLinkServer
+from build_link.winput import real_key_plan, is_modifier
 
 
 class FakeBackend:
@@ -178,6 +179,29 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(self.e.reason, "input")
         with self.assertRaises(StepError):
             validate_actions([{"k": "tap", "key": "w", "mouse": {"dx": 5}}])
+
+    def test_a_player_key_never_meets_our_held_modifier(self):
+        # Sneak on Ctrl (vk:17) held for the build: the player's Esc must not become Ctrl+Esc (Start).
+        self.assertEqual(real_key_plan(False, True, ["vk:17"]), (["vk:17"], True))
+        self.assertEqual(real_key_plan(False, True, ["vk:17", "vk:87"]), (["vk:17"], True), "walk keys are let go by the stop")
+        self.assertEqual(real_key_plan(False, True, ["shift"]), (["shift"], True))
+        self.assertEqual(real_key_plan(False, True, ["vk:18"]), (["vk:18"], True), "Alt (Alt+Tab, Alt+F4)")
+        self.assertEqual(real_key_plan(False, True, ["vk:87"]), ([], False), "no modifier held: the key goes through as it is")
+        self.assertEqual(real_key_plan(True, True, ["vk:17"]), ([], False), "our own (injected) keys are not touched")
+        self.assertEqual(real_key_plan(False, False, ["vk:17"]), ([], False), "a key going up is not held back")
+        for n in ("shift", "vk:16", "vk:17", "vk:18", "vk:162", "vk:91"):
+            self.assertTrue(is_modifier(n), n)
+        for n in ("w", "vk:87", "space", "vk:32"):
+            self.assertFalse(is_modifier(n), n)
+
+    def test_a_player_key_stops_the_build_and_releases_sneak_first(self):
+        self.assertIsNone(self.e.arm("normal", "vk:17"))
+        self.e.run([{"k": "down", "key": "vk:17"}])
+        self.assertEqual(self.b.down, {"vk:17"})
+        self.b.real()   # the player's key, as the hook reports it
+        self.assertEqual(self.b.down, set())
+        self.assertEqual(self.e.reason, "input")
+        self.assertFalse(self.e.armed)
 
     def test_validation(self):
         for bad in ([], [{"k": "down", "key": "w"}], [{"k": "hold", "key": "q", "ms": 10}],

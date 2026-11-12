@@ -28,6 +28,33 @@ LLKHF_INJECTED = 0x10
 LLMHF_INJECTED = 0x01
 WM_KEYDOWN, WM_SYSKEYDOWN, WM_MOUSEMOVE = 0x0100, 0x0104, 0x0200
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+WM_KEYUP, WM_SYSKEYUP = 0x0101, 0x0105
+
+# Keys Windows combines with others (Ctrl+Esc opens Start, Ctrl+Shift+Esc Task Manager, Alt+Tab,
+# Alt+F4, the Windows key): by name, as the brain sends them. Sneak may be one of them (Ctrl on the
+# trial PC) and stays held for the whole build.
+MODIFIER_VK = frozenset([0x10, 0x11, 0x12, 0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0x5B, 0x5C])
+
+
+def is_modifier(name):
+    """Whether a key name ("shift" or "vk:<n>") is one Windows combines with other keys."""
+    if name == "shift":
+        return True
+    return isinstance(name, str) and name.startswith("vk:") and name[3:].isdigit() and int(name[3:]) in MODIFIER_VK
+
+
+def real_key_plan(injected, is_down, held):
+    """What to do with one key event the player made, before Windows acts on it.
+
+    held: the key names we hold right now. Returns (release, swallow_and_resend):
+    release, the modifiers we hold, to let go of first; swallow_and_resend, whether to hold this key
+    event back and send it again after the release (so Ctrl held for sneak and the player's Esc never
+    reach Windows together as Ctrl+Esc, which opens Start over the game).
+    """
+    if injected or not is_down:
+        return [], False
+    mods = [n for n in held if is_modifier(n)]
+    return mods, bool(mods)
 
 ULONG_PTR = ctypes.c_size_t
 
@@ -81,6 +108,7 @@ class WindowsBackend:
             pass
         self._listeners = []
         self._pid_cache = (None, None)
+        self._held = set()   # key names we hold right now (for the player's-key guard)
 
     # ----- sending -----
     def _send(self, inp):
@@ -107,9 +135,17 @@ class WindowsBackend:
 
     def key_down(self, name):
         self._key(name, False)
+        self._held.add(name)
 
     def key_up(self, name):
+        self._held.discard(name)
         self._key(name, True)
+
+    def _vk_event(self, vk, scan, up):
+        """The player's key, sent again (it carries the injected flag, so the hook lets it pass)."""
+        inp = INPUT(type=INPUT_KEYBOARD)
+        inp.u.ki = KEYBDINPUT(vk, scan, KEYEVENTF_KEYUP if up else 0, 0, 0)
+        self._send(inp)
 
     def _button(self, name, up):
         inp = INPUT(type=INPUT_MOUSE)
@@ -166,9 +202,29 @@ class WindowsBackend:
     def start_watch(self, on_real_input, on_hotkey):
         from pynput import keyboard, mouse
 
+        holder = {}
+
         def kfilter(msg, data):
-            if not data.flags & LLKHF_INJECTED and msg in (WM_KEYDOWN, WM_SYSKEYDOWN):
+            injected = bool(data.flags & LLKHF_INJECTED)
+            is_down = msg in (WM_KEYDOWN, WM_SYSKEYDOWN)
+            release, resend = real_key_plan(injected, is_down, list(self._held))
+            if not injected and is_down:
+                # First of all, inside the hook and before Windows acts on this key: let go of every
+                # modifier we hold. Then hold this key back and send it again after the release, so
+                # the game gets a clean key (Esc opens its pause menu) and Windows never sees
+                # Ctrl+Esc (Start), Ctrl+Shift+Esc, Alt+Tab or Alt+F4 made of our Ctrl and the player's key.
+                for name in release:
+                    try:
+                        self.key_up(name)
+                    except OSError:
+                        pass
                 (on_hotkey if data.vkCode == STOP_KEY_VK else on_real_input)()
+                if resend:
+                    try:
+                        self._vk_event(data.vkCode, data.scanCode, False)
+                    except OSError:
+                        pass
+                    holder["k"].suppress_event()
             return True
 
         moved = {"last": None}
@@ -186,6 +242,7 @@ class WindowsBackend:
             return True
 
         k = keyboard.Listener(win32_event_filter=kfilter)
+        holder["k"] = k
         m = mouse.Listener(win32_event_filter=mfilter)
         k.start()
         m.start()

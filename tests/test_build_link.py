@@ -227,11 +227,18 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(self.b.down, set())  # a refused step stops the build
         self.assertTrue(self.ask(c, f, {"id": 5, "op": "arm"})["ok"])
         self.ask(c, f, {"id": 6, "op": "step", "do": [{"k": "down", "key": "shift"}]})
+        f.close()  # the file object holds the socket open until it is closed too
         c.close()
         self.assertTrue(wait_until(lambda: not self.e.armed))
         self.assertEqual(self.b.down, set())
         # The session log: connected, arms, each step with its answer, the stop, disconnected.
-        self.assertTrue(wait_until(lambda: os.path.exists(self.s.log_file) and "disconnected" in open(self.s.log_file, encoding="utf-8").read()))
+        def logged():
+            try:
+                with open(self.s.log_file, encoding="utf-8") as fh:
+                    return "disconnected" in fh.read()
+            except OSError:
+                return False
+        self.assertTrue(wait_until(logged, 4), open(self.s.log_file, encoding="utf-8").read() if os.path.exists(self.s.log_file) else "no log")
         with open(self.s.log_file, encoding="utf-8") as fh:
             rows = [json.loads(line) for line in fh]
         kinds = [r["type"] for r in rows]

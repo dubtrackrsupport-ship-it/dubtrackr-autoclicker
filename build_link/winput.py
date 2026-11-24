@@ -42,8 +42,10 @@ GAMES = TARGETS + ("fortniteclient-win64-shipping.exe", "javaw.exe")
 
 
 def starts_minimized(foreground_exe):
-    """Whether AutoClickr should open minimized: a game is the window in front."""
-    return bool(foreground_exe) and os.path.basename(foreground_exe).lower() in GAMES
+    """Whether AutoClickr should open minimized: a game is the window in front.
+    AUTOCLICKR_QUIET_START_EXES (comma-separated program names) adds stand-ins, for the focus test only."""
+    extra = tuple(x.strip().lower() for x in os.environ.get("AUTOCLICKR_QUIET_START_EXES", "").split(",") if x.strip())
+    return bool(foreground_exe) and os.path.basename(foreground_exe).lower() in GAMES + extra
 
 
 def foreground_exe():

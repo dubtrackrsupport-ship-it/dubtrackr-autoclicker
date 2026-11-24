@@ -16,11 +16,29 @@ Free & open source — part of the Dubtrackr Network · https://www.dubtrackr.wi
 Requires:  pip install customtkinter pynput
 """
 
-import sys as _sys
-if __name__ == "__main__" and "--build-link-only" in _sys.argv:
+import os as _os
+import time as _time
+# Focus test only (tests/manual_focus_check.py): each startup step with its time and the window in front.
+_TRACE = _os.environ.get("AUTOCLICKR_FOCUS_TRACE")
+
+
+def _trace(step):
+    if not _TRACE:
+        return
+    try:
+        import ctypes
+        fg = ctypes.windll.user32.GetForegroundWindow()
+        with open(_TRACE, "a", encoding="utf-8") as f:
+            f.write("%.4f | %s | %s\n" % (_time.time(), step, fg))
+    except Exception:
+        pass
+
+
+_trace("interpreter")
+if __name__ == "__main__" and "--build-link-only" in __import__("sys").argv:
     # The build link alone, with no window (the DubTrackr app starts it this way): tkinter is never loaded.
     from build_link.headless import main as _link_only
-    raise SystemExit(_link_only(_sys.argv[1:]))
+    raise SystemExit(_link_only(__import__("sys").argv[1:]))
 import colorsys
 import json
 import math
@@ -28,10 +46,13 @@ import os
 import random
 import sys
 import threading
+_trace("before tkinter")
 import tkinter as tk
+_trace("tkinter imported")
 import webbrowser
 
 import customtkinter as ctk
+_trace("customtkinter imported")
 from pynput.mouse import Button, Controller as MouseController
 from pynput.keyboard import (Controller as KeyboardController, Key,
                              Listener as KeyListener)
@@ -39,6 +60,7 @@ from version import VERSION
 from walk_engine import WalkEngine
 from build_link import start as build_link_start
 from build_link.winput import foreground_exe, starts_minimized
+_trace("all imported")
 
 APP_NAME = "DubTrackr AutoClickr"
 WEBSITE = "https://www.dubtrackr.win"
@@ -240,11 +262,25 @@ class RepeatEngine(threading.Thread):
 
 class App(ctk.CTk):
     def __init__(self):
+        # Opened while a game is in front (DubTrackr's Build it for me, or a hotkey launch): shown
+        # minimized and never activated, so the game keeps the focus. Decided before customtkinter's
+        # own setup: its title-bar step hides and shows the window and gives focus back to a widget,
+        # and a process just started may take the foreground (minimized but active 0.68 s in, the game
+        # paused, 2026-11-12). Until the game is no longer in front the window cannot be activated at
+        # all (WS_EX_NOACTIVATE); its title bar is coloured directly, never by hiding and showing.
+        self._quiet_start = starts_minimized(foreground_exe())
+        _trace(f"quiet {self._quiet_start}; before CTk init")
         super().__init__()
-        # Opened while a game is in front (DubTrackr's Build it for me, or a hotkey launch): minimized
-        # and without taking the focus, so the game keeps it. Set before the window first shows.
-        if starts_minimized(foreground_exe()):
-            self.iconify()
+        _trace(f"after CTk init; frame {self.wm_frame()}")
+        if self._quiet_start:
+            self.withdraw()
+            # The frame window exists (still hidden) once idle tasks run: no activation from here on.
+            self.update_idletasks()
+            try:
+                self._no_activate(True)
+            except Exception:
+                pass
+            _trace(f"withdrawn, no-activate set on {self._hwnd()}")
         timer_begin()               # 1ms system timer for smooth, precise clicking
         self.s = load_settings()
         ctk.set_appearance_mode(self.s["appearance"])
@@ -285,6 +321,73 @@ class App(ctk.CTk):
                                     on_release=self.on_global_release)
         self.listener.start()
         self.protocol("WM_DELETE_WINDOW", self.on_close)
+        _trace("init done")
+        if self._quiet_start:
+            self.after(300, self._show_quietly)
+
+    # ---------- opening behind a game ----------
+    def _hwnd(self):
+        import ctypes
+        return ctypes.windll.user32.GetParent(self.winfo_id())
+
+    def _no_activate(self, on):
+        """WS_EX_NOACTIVATE on the window (kept on the taskbar with WS_EX_APPWINDOW) or off again."""
+        import ctypes
+        u = ctypes.windll.user32
+        get = getattr(u, "GetWindowLongPtrW", u.GetWindowLongW)
+        put = getattr(u, "SetWindowLongPtrW", u.SetWindowLongW)
+        get.restype = ctypes.c_ssize_t
+        put.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_ssize_t]
+        hwnd = self._hwnd()
+        ex = get(ctypes.c_void_p(hwnd), -20)
+        ex = (ex | 0x08000000 | 0x00040000) if on else (ex & ~0x08000000)
+        put(hwnd, -20, ex)
+
+    def _windows_set_titlebar_color(self, color_mode):
+        # Behind a game: the title bar coloured directly, with no hide and show and no focus call.
+        if not getattr(self, "_quiet_start", False):
+            return super()._windows_set_titlebar_color(color_mode)
+        import ctypes
+        try:
+            self._no_activate(True)
+            dark = 1 if str(color_mode).lower() == "dark" else 0
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(self._hwnd(), 20, ctypes.byref(ctypes.c_int(dark)), ctypes.sizeof(ctypes.c_int))
+        except Exception:
+            pass
+
+    def focus(self, *args):
+        if not getattr(self, "_quiet_start", False):
+            return super().focus(*args)
+
+    focus_set = focus
+
+    def focus_force(self, *args):
+        if not getattr(self, "_quiet_start", False):
+            return super().focus_force(*args)
+
+    def _show_quietly(self):
+        """Shows the window minimized on the taskbar without activating it (the game stays in front)."""
+        import ctypes
+        try:
+            self.update_idletasks()
+            self._no_activate(True)
+            _trace(f"before show-min-noactivate on {self._hwnd()}")
+            ctypes.windll.user32.ShowWindow(self._hwnd(), 7)  # SW_SHOWMINNOACTIVE
+            _trace("after show-min-noactivate")
+        except Exception:
+            self.iconify()
+        self.after(500, self._watch_quiet)
+
+    def _watch_quiet(self):
+        """Back to a normal window once no game is in front (the player went to the desktop or another app)."""
+        if starts_minimized(foreground_exe()):
+            self.after(500, self._watch_quiet)
+            return
+        self._quiet_start = False
+        try:
+            self._no_activate(False)
+        except Exception:
+            pass
 
     # ---------- icon ----------
     def _set_icon(self):
@@ -985,4 +1088,6 @@ class App(ctk.CTk):
 
 
 if __name__ == "__main__":
-    App().mainloop()
+    _app = App()
+    _trace("mainloop")
+    _app.mainloop()
